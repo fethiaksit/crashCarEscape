@@ -5,19 +5,12 @@ import type { LevelDefinition } from '@/src/game/types';
 
 type LevelGridProps = {
   levels: LevelDefinition[];
-  isLevelUnlocked: (levelId: string) => boolean;
   selectedLevelId: string;
   completedLevelIds: string[];
   onSelectLevel: (levelId: string) => void;
 };
 
-export function LevelGrid({
-  levels,
-  isLevelUnlocked,
-  selectedLevelId,
-  completedLevelIds,
-  onSelectLevel,
-}: LevelGridProps) {
+export function LevelGrid({ levels, selectedLevelId, completedLevelIds, onSelectLevel }: LevelGridProps) {
   return (
     <FlatList
       data={levels}
@@ -28,7 +21,6 @@ export function LevelGrid({
       renderItem={({ item, index }) => (
         <LevelCard
           levelNumber={index + 1}
-          isLocked={!isLevelUnlocked(item.id)}
           isCompleted={completedLevelIds.includes(item.id)}
           isCurrent={item.id === selectedLevelId}
           onPress={() => onSelectLevel(item.id)}
