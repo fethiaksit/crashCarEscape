@@ -46,10 +46,12 @@ const carveLine = (open: Set<string>, from: Position, to: Position, width: numbe
   };
 
   add(x, y);
+
   while (x !== to.x) {
     x += dx;
     add(x, y);
   }
+
   while (y !== to.y) {
     y += dy;
     add(x, y);
@@ -74,158 +76,6 @@ const getStartRows = (height: number, carCount: number) => {
   ];
 
   return rows.map((row) => clamp(row, 1, height - 2)).slice(0, carCount);
-};
-
-const getSpine = (levelNumber: number, width: number, height: number): Position[] => {
-  const laneTop = 1;
-  const laneBottom = height - 2;
-  const midY = Math.floor(height / 2);
-  const variant = (levelNumber - 1) % 8;
-
-  switch (variant) {
-    case 0:
-      return [
-        { x: 1, y: midY },
-        { x: 3, y: midY },
-        { x: 3, y: laneTop },
-        { x: width - 3, y: laneTop },
-        { x: width - 3, y: laneBottom },
-      ];
-    case 1:
-      return [
-        { x: 1, y: midY },
-        { x: 4, y: midY },
-        { x: 4, y: laneBottom },
-        { x: width - 4, y: laneBottom },
-        { x: width - 4, y: laneTop },
-      ];
-    case 2:
-      return [
-        { x: 1, y: midY },
-        { x: 2, y: midY },
-        { x: 2, y: laneTop },
-        { x: width - 5, y: laneTop },
-        { x: width - 5, y: midY },
-        { x: width - 3, y: midY },
-        { x: width - 3, y: laneBottom },
-      ];
-    case 3:
-      return [
-        { x: 1, y: midY },
-        { x: 3, y: midY },
-        { x: 3, y: laneBottom },
-        { x: width - 5, y: laneBottom },
-        { x: width - 5, y: laneTop },
-        { x: width - 3, y: laneTop },
-      ];
-    case 4:
-      return [
-        { x: 1, y: midY },
-        { x: 2, y: midY },
-        { x: 2, y: laneBottom },
-        { x: width - 4, y: laneBottom },
-        { x: width - 4, y: midY },
-        { x: width - 3, y: midY },
-        { x: width - 3, y: laneTop },
-      ];
-    case 5:
-      return [
-        { x: 1, y: midY },
-        { x: 4, y: midY },
-        { x: 4, y: laneTop },
-        { x: width - 3, y: laneTop },
-        { x: width - 3, y: midY },
-        { x: width - 5, y: midY },
-        { x: width - 5, y: laneBottom },
-      ];
-    case 6:
-      return [
-        { x: 1, y: midY },
-        { x: 3, y: midY },
-        { x: 3, y: laneTop },
-        { x: width - 6, y: laneTop },
-        { x: width - 6, y: laneBottom },
-        { x: width - 3, y: laneBottom },
-      ];
-    case 7:
-    default:
-      return [
-        { x: 1, y: midY },
-        { x: 2, y: midY },
-        { x: 2, y: laneTop },
-        { x: width - 4, y: laneTop },
-        { x: width - 4, y: laneBottom },
-        { x: width - 3, y: laneBottom },
-        { x: width - 3, y: midY },
-      ];
-  }
-};
-
-const makeOpenCells = ({
-  levelNumber,
-  width,
-  height,
-  carRows,
-  parkingRows,
-}: {
-  levelNumber: number;
-  width: number;
-  height: number;
-  carRows: number[];
-  parkingRows: number[];
-}) => {
-  const open = new Set<string>();
-  const spine = getSpine(levelNumber, width, height);
-  carvePath(open, spine, width, height);
-
-  const pressure = Math.max(0, levelNumber - 1);
-  const mergeX = levelNumber <= 5 ? 2 : levelNumber <= 10 ? 3 : clamp(4 + Math.floor(pressure / 20), 4, width - 4);
-  const preParkX = clamp(width - 4 - Math.floor(pressure / 22), Math.floor(width / 2), width - 4);
-  const parkX = width - 2;
-
-  for (let i = 0; i < carRows.length; i += 1) {
-    const startRow = carRows[i];
-    const targetRow = parkingRows[i];
-
-    carvePath(
-      open,
-      [
-        { x: 0, y: startRow },
-        { x: 1, y: startRow },
-        { x: 1, y: Math.floor(height / 2) },
-        { x: mergeX, y: Math.floor(height / 2) },
-        { x: mergeX, y: targetRow },
-        { x: preParkX, y: targetRow },
-        { x: parkX, y: targetRow },
-      ],
-      width,
-      height,
-    );
-
-    if (levelNumber >= 6) {
-      const detourX = clamp(2 + ((levelNumber + i) % Math.max(3, width - 6)), 2, width - 4);
-      carvePath(open, [{ x: detourX, y: targetRow }, { x: detourX, y: clamp(targetRow + (i % 2 === 0 ? -1 : 1), 1, height - 2) }], width, height);
-    }
-  }
-
-  const trapDensity =
-    levelNumber <= 5 ? 0 : levelNumber <= 10 ? 2 : 3 + Math.floor((levelNumber - 10) / 8);
-
-  for (let t = 0; t < trapDensity; t += 1) {
-    const baseX = clamp(2 + ((levelNumber * 3 + t * 2) % Math.max(2, width - 5)), 2, width - 4);
-    const baseY = clamp(1 + ((levelNumber + t * 3) % Math.max(2, height - 2)), 1, height - 2);
-    const length = 1 + ((levelNumber + t) % 2);
-    const direction = (levelNumber + t) % 2 === 0 ? -1 : 1;
-
-    carveLine(open, { x: baseX, y: baseY }, { x: baseX + length * direction, y: baseY }, width, height);
-  }
-
-  if (levelNumber >= 10) {
-    const chokeX = clamp(Math.floor(width / 2) + Math.floor((levelNumber - 10) / 12), 3, width - 4);
-    carveLine(open, { x: chokeX, y: 1 }, { x: chokeX, y: height - 2 }, width, height);
-  }
-
-  return open;
 };
 
 const makeObstacles = ({
@@ -270,19 +120,148 @@ const getParkingRows = (levelNumber: number, carRows: number[], height: number) 
   return rotated;
 };
 
-const getParkingX = (levelNumber: number, carIndex: number, width: number) => {
-  if (levelNumber <= 4) return width - 2;
-  if (levelNumber <= 10) return width - 2 - (carIndex % 2);
-
-  const inwardShift = clamp(1 + Math.floor((levelNumber - 10) / 18), 1, 3);
-  return clamp(width - 2 - ((carIndex + levelNumber) % 2) * inwardShift, Math.floor(width / 2), width - 2);
+const getStage = (levelNumber: number) => {
+  if (levelNumber <= 5) return 0;
+  if (levelNumber <= 10) return 1;
+  if (levelNumber <= 20) return 2;
+  if (levelNumber <= 40) return 3;
+  return 4;
 };
 
-const buildLevel = (levelNumber: number): LevelDefinition => {
+const getParkingX = ({
+  levelNumber,
+  carIndex,
+  width,
+  variant,
+}: {
+  levelNumber: number;
+  carIndex: number;
+  width: number;
+  variant: number;
+}) => {
+  if (levelNumber <= 5) {
+    return width - 2 - ((carIndex + variant) % 2);
+  }
+
+  const stage = getStage(levelNumber);
+  const base = width - 2 - (carIndex % 2 === 0 ? 0 : 1);
+  const inward = stage <= 1 ? 0 : clamp(Math.floor((stage + carIndex + variant) / 2), 1, 4);
+
+  return clamp(base - inward, Math.floor(width / 2) - 1, width - 2);
+};
+
+const makeOpenCells = ({
+  levelNumber,
+  width,
+  height,
+  carRows,
+  parkingRows,
+  parkingXs,
+  variant,
+}: {
+  levelNumber: number;
+  width: number;
+  height: number;
+  carRows: number[];
+  parkingRows: number[];
+  parkingXs: number[];
+  variant: number;
+}) => {
+  const open = new Set<string>();
+  const centerY = Math.floor(height / 2);
+  const stage = getStage(levelNumber);
+
+  const leftGateX = levelNumber <= 5 ? 1 : 2;
+  const hubX = clamp(2 + stage + (variant % 2), 2, width - 6);
+  const rightHubX = clamp(width - 3 - (stage >= 3 ? 1 : 0), hubX + 2, width - 2);
+
+  carvePath(
+    open,
+    [
+      { x: leftGateX, y: centerY },
+      { x: hubX, y: centerY },
+      { x: rightHubX, y: centerY },
+    ],
+    width,
+    height,
+  );
+
+  if (stage >= 2) {
+    const verticalChokeX = clamp(hubX + 1 + (variant % 2), 3, width - 4);
+    carveLine(open, { x: verticalChokeX, y: 1 }, { x: verticalChokeX, y: height - 2 }, width, height);
+  }
+
+  for (let i = 0; i < carRows.length; i += 1) {
+    const startRow = carRows[i];
+    const parkingRow = parkingRows[i];
+    const parkingX = parkingXs[i];
+    const branchX = clamp(leftGateX + (i % 2 === 0 ? 0 : 1), 1, hubX);
+
+    carvePath(
+      open,
+      [
+        { x: 0, y: startRow },
+        { x: branchX, y: startRow },
+        { x: branchX, y: centerY },
+        { x: hubX, y: centerY },
+      ],
+      width,
+      height,
+    );
+
+    const pocketOffset = i % 2 === 0 ? -1 : 1;
+    const stagingRow = clamp(parkingRow + pocketOffset, 1, height - 2);
+
+    carvePath(
+      open,
+      [
+        { x: hubX, y: centerY },
+        { x: rightHubX, y: centerY },
+        { x: rightHubX, y: stagingRow },
+        { x: parkingX, y: stagingRow },
+        { x: parkingX, y: parkingRow },
+      ],
+      width,
+      height,
+    );
+
+    if (stage >= 1) {
+      const deadEndLength = 1 + ((levelNumber + variant + i) % 2);
+      const deadEndY = clamp(stagingRow + (i % 2 === 0 ? -1 : 1), 1, height - 2);
+      carveLine(
+        open,
+        { x: clamp(parkingX - 1, hubX + 1, width - 2), y: deadEndY },
+        { x: clamp(parkingX - 1 - deadEndLength, hubX + 1, width - 2), y: deadEndY },
+        width,
+        height,
+      );
+    }
+  }
+
+  if (stage >= 3) {
+    const falsePocketX = clamp(hubX + 1, 2, width - 4);
+    const falsePocketY = clamp(centerY + (variant % 2 === 0 ? -2 : 2), 1, height - 2);
+    carvePath(
+      open,
+      [
+        { x: falsePocketX, y: centerY },
+        { x: falsePocketX, y: falsePocketY },
+        { x: clamp(falsePocketX + 1, 1, width - 2), y: falsePocketY },
+      ],
+      width,
+      height,
+    );
+  }
+
+  return open;
+};
+
+const buildLevel = (levelNumber: number, variant = 0): LevelDefinition => {
   const carCount = getCarCountForLevel(levelNumber);
   const boardSize = getBoardSize(levelNumber, carCount);
   const carRows = getStartRows(boardSize.height, carCount);
   const parkingRows = getParkingRows(levelNumber, carRows, boardSize.height);
+  const parkingXs = Array.from({ length: carCount }, (_, i) => getParkingX({ levelNumber, carIndex: i, width: boardSize.width, variant }));
 
   const openCells = makeOpenCells({
     levelNumber,
@@ -290,6 +269,8 @@ const buildLevel = (levelNumber: number): LevelDefinition => {
     height: boardSize.height,
     carRows,
     parkingRows,
+    parkingXs,
+    variant,
   });
 
   const cars = Array.from({ length: carCount }, (_, i) => ({
@@ -301,7 +282,7 @@ const buildLevel = (levelNumber: number): LevelDefinition => {
 
   const parkingSpots = Array.from({ length: carCount }, (_, i) => ({
     id: `park-${i + 1}`,
-    position: { x: getParkingX(levelNumber, i, boardSize.width), y: parkingRows[i] },
+    position: { x: parkingXs[i], y: parkingRows[i] },
     color: COLOR_POOL[i],
     acceptsCarId: `car-${i + 1}`,
   }));
@@ -335,7 +316,11 @@ const hasPath = ({
   const seen = new Set<string>([keyOf(start)]);
 
   while (queue.length > 0) {
-    const current = queue.shift()!;
+    const current = queue.shift();
+
+    if (!current) {
+      continue;
+    }
 
     if (current.x === goal.x && current.y === goal.y) {
       return true;
@@ -362,8 +347,7 @@ const hasPath = ({
   return false;
 };
 
-const hasWinningOrder = (level: LevelDefinition) => {
-  const allMask = (1 << level.cars.length) - 1;
+const getMovementContext = (level: LevelDefinition) => {
   const obstacleSet = new Set(level.obstacles.map((o) => keyOf(o.position)));
   const carByIndex = level.cars;
   const spotByCarId = new Map(level.parkingSpots.map((spot) => [spot.acceptsCarId, spot.position]));
@@ -380,9 +364,7 @@ const hasWinningOrder = (level: LevelDefinition) => {
       if (otherCar.id === car.id) continue;
 
       const isParked = (mask & (1 << i)) !== 0;
-      blocked.add(
-        isParked ? keyOf(spotByCarId.get(otherCar.id) ?? otherCar.position) : keyOf(otherCar.position),
-      );
+      blocked.add(isParked ? keyOf(spotByCarId.get(otherCar.id) ?? otherCar.position) : keyOf(otherCar.position));
     }
 
     return hasPath({
@@ -393,6 +375,16 @@ const hasWinningOrder = (level: LevelDefinition) => {
       blocked,
     });
   };
+
+  return {
+    allMask: (1 << level.cars.length) - 1,
+    carByIndex,
+    canParkWithMask,
+  };
+};
+
+const hasWinningOrder = (level: LevelDefinition) => {
+  const { allMask, carByIndex, canParkWithMask } = getMovementContext(level);
 
   const dfs = (mask: number, visiting: Set<number>): boolean => {
     if (mask === allMask) return true;
@@ -416,7 +408,148 @@ const hasWinningOrder = (level: LevelDefinition) => {
   return dfs(0, new Set<number>());
 };
 
-export const GENERATED_LEVELS: LevelDefinition[] = Array.from({ length: 99 }, (_, index) => buildLevel(index + 1));
+const getDifficultyTargets = (levelNumber: number) => {
+  if (levelNumber <= 5) {
+    return { maxWinningOrders: 20, minFailureRatio: 0, minPunishingStates: 0, maxOpenRatio: 0.52 };
+  }
+
+  if (levelNumber <= 10) {
+    return { maxWinningOrders: 10, minFailureRatio: 0.25, minPunishingStates: 2, maxOpenRatio: 0.46 };
+  }
+
+  if (levelNumber <= 20) {
+    return { maxWinningOrders: 6, minFailureRatio: 0.4, minPunishingStates: 5, maxOpenRatio: 0.42 };
+  }
+
+  if (levelNumber <= 40) {
+    return { maxWinningOrders: 4, minFailureRatio: 0.5, minPunishingStates: 9, maxOpenRatio: 0.38 };
+  }
+
+  return { maxWinningOrders: 2, minFailureRatio: 0.6, minPunishingStates: 12, maxOpenRatio: 0.34 };
+};
+
+const analyzeOrderPressure = (level: LevelDefinition) => {
+  const { allMask, carByIndex, canParkWithMask } = getMovementContext(level);
+  const solvableMemo = new Map<number, boolean>();
+
+  const canWinFromMask = (mask: number): boolean => {
+    if (mask === allMask) return true;
+
+    const cached = solvableMemo.get(mask);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    let result = false;
+    for (let i = 0; i < carByIndex.length; i += 1) {
+      if ((mask & (1 << i)) !== 0) {
+        continue;
+      }
+
+      if (canParkWithMask(i, mask) && canWinFromMask(mask | (1 << i))) {
+        result = true;
+        break;
+      }
+    }
+
+    solvableMemo.set(mask, result);
+    return result;
+  };
+
+  let winningOrders = 0;
+
+  const countOrders = (mask: number) => {
+    if (mask === allMask) {
+      winningOrders += 1;
+      return;
+    }
+
+    for (let i = 0; i < carByIndex.length; i += 1) {
+      if ((mask & (1 << i)) !== 0) {
+        continue;
+      }
+
+      const nextMask = mask | (1 << i);
+      if (!canParkWithMask(i, mask) || !canWinFromMask(nextMask)) {
+        continue;
+      }
+
+      countOrders(nextMask);
+    }
+  };
+
+  let totalMoves = 0;
+  let punishingMoves = 0;
+  let punishingStates = 0;
+
+  for (let mask = 0; mask <= allMask; mask += 1) {
+    if (!canWinFromMask(mask) || mask === allMask) {
+      continue;
+    }
+
+    let stateHasPunishment = false;
+
+    for (let i = 0; i < carByIndex.length; i += 1) {
+      if ((mask & (1 << i)) !== 0 || !canParkWithMask(i, mask)) {
+        continue;
+      }
+
+      const nextMask = mask | (1 << i);
+      totalMoves += 1;
+
+      if (!canWinFromMask(nextMask)) {
+        punishingMoves += 1;
+        stateHasPunishment = true;
+      }
+    }
+
+    if (stateHasPunishment) {
+      punishingStates += 1;
+    }
+  }
+
+  countOrders(0);
+
+  const failureRatio = totalMoves > 0 ? punishingMoves / totalMoves : 0;
+
+  return {
+    winningOrders,
+    punishingStates,
+    failureRatio,
+  };
+};
+
+const passesDifficultyProfile = (level: LevelDefinition, levelNumber: number) => {
+  const targets = getDifficultyTargets(levelNumber);
+  const pressure = analyzeOrderPressure(level);
+  const totalCells = level.boardSize.width * level.boardSize.height;
+  const openCells = totalCells - level.obstacles.length;
+  const openRatio = openCells / totalCells;
+
+  return (
+    pressure.winningOrders >= 1 &&
+    pressure.winningOrders <= targets.maxWinningOrders &&
+    pressure.failureRatio >= targets.minFailureRatio &&
+    pressure.punishingStates >= targets.minPunishingStates &&
+    openRatio <= targets.maxOpenRatio
+  );
+};
+
+const buildLevelWithPressure = (levelNumber: number): LevelDefinition => {
+  for (let variant = 0; variant < 12; variant += 1) {
+    const candidate = buildLevel(levelNumber, variant);
+
+    if (passesDifficultyProfile(candidate, levelNumber)) {
+      return candidate;
+    }
+  }
+
+  return buildLevel(levelNumber, 0);
+};
+
+export const GENERATED_LEVELS: LevelDefinition[] = Array.from({ length: 99 }, (_, index) =>
+  buildLevelWithPressure(index + 1),
+);
 
 if (GENERATED_LEVELS.length !== 99) {
   throw new Error('Crash Car Escape requires exactly 99 levels.');
