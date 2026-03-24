@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GameBoard } from '@/src/game/components/game-board';
@@ -11,6 +11,7 @@ const STATUS_TEXT: Record<string, string> = {
 };
 
 export function GameScreen() {
+  const { width: windowWidth } = useWindowDimensions();
   const levels = useGameStore((state) => state.levels);
   const level = useGameStore((state) => state.level);
   const status = useGameStore((state) => state.status);
@@ -43,12 +44,29 @@ export function GameScreen() {
     [boardViewport.height, boardViewport.width],
   );
 
+  const sidePanelWidth = useMemo(() => Math.max(220, Math.min(360, windowWidth * 0.34)), [windowWidth]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <Text style={styles.title}>Crash Car Escape</Text>
-        <Text style={styles.levelLabel}>{level.name}</Text>
-        <Text style={styles.hint}>Tap a car to auto-send it to its own matching parking spot.</Text>
+        <View style={[styles.sidePanel, { width: sidePanelWidth }]}>
+          <Text style={styles.title}>Crash Car Escape</Text>
+          <Text style={styles.levelLabel}>{level.name}</Text>
+          <Text style={styles.hint}>Tap a car to auto-send it to its own matching parking spot.</Text>
+
+          <View style={styles.sidePanelSpacer} />
+
+          {!!statusMessage && status === 'playing' && <Text style={styles.message}>{statusMessage}</Text>}
+
+          <View style={styles.buttonColumn}>
+            <Pressable style={styles.button} onPress={restartLevel}>
+              <Text style={styles.buttonText}>Restart</Text>
+            </Pressable>
+            <Pressable style={[styles.button, styles.secondaryButton]} onPress={openLevelSelect}>
+              <Text style={styles.buttonText}>Levels</Text>
+            </Pressable>
+          </View>
+        </View>
 
         <View
           style={styles.boardArea}
@@ -71,17 +89,6 @@ export function GameScreen() {
             )}
           </View>
         </View>
-
-        {!!statusMessage && status === 'playing' && <Text style={styles.message}>{statusMessage}</Text>}
-
-        <View style={styles.buttonRow}>
-          <Pressable style={styles.button} onPress={restartLevel}>
-            <Text style={styles.buttonText}>Restart</Text>
-          </Pressable>
-          <Pressable style={[styles.button, styles.secondaryButton]} onPress={openLevelSelect}>
-            <Text style={styles.buttonText}>Levels</Text>
-          </Pressable>
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -94,15 +101,27 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 10,
+    flexDirection: 'row',
+    alignItems: 'stretch',
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 16,
+    paddingVertical: 8,
+    gap: 10,
+  },
+  sidePanel: {
+    backgroundColor: '#0b1220',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  sidePanelSpacer: {
+    flex: 1,
+    minHeight: 8,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     color: '#f8fafc',
     fontWeight: '800',
   },
@@ -113,15 +132,12 @@ const styles = StyleSheet.create({
   hint: {
     color: '#94a3b8',
     fontSize: 13,
-    marginBottom: 4,
-    textAlign: 'center',
   },
   boardArea: {
     flex: 1,
-    width: '100%',
+    minWidth: 220,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 220,
   },
   boardWrap: {
     position: 'relative',
@@ -148,16 +164,15 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
     fontSize: 13,
   },
-  buttonRow: {
-    marginTop: 4,
-    flexDirection: 'row',
-    gap: 12,
+  buttonColumn: {
+    gap: 10,
   },
   button: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
     backgroundColor: '#2563eb',
+    alignItems: 'center',
   },
   secondaryButton: {
     backgroundColor: '#475569',

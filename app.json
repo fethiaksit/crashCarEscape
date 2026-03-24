@@ -3,7 +3,7 @@
     "name": "crash-car-escape",
     "slug": "crash-car-escape",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "landscape",
     "icon": "./assets/images/icon.png",
     "scheme": "crashcarescape",
     "userInterfaceStyle": "automatic",
