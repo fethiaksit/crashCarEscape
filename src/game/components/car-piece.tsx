@@ -33,9 +33,9 @@ function CarPieceComponent({ car, tileSize, isSelected, onPress }: CarPieceProps
   return (
     <Animated.View style={[styles.wrapper, { width: tileSize, height: tileSize }, animatedStyle]}>
       <Pressable
-        style={[styles.car, { backgroundColor: car.color }, isSelected && styles.selected]}
+        style={[styles.car, { backgroundColor: car.color, borderRadius: Math.max(6, Math.floor(tileSize * 0.22)), borderWidth: Math.max(1, Math.floor(tileSize * 0.07)) }, isSelected && styles.selected]}
         onPress={onPress}>
-        <Text style={styles.label}>{car.label}</Text>
+        <Text style={[styles.label, { fontSize: Math.max(10, Math.floor(tileSize * 0.38)) }]}>{car.label}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -46,7 +46,7 @@ export const CarPiece = memo(CarPieceComponent);
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    padding: 4,
+    padding: 2,
   },
   car: {
     flex: 1,
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   },
   selected: {
     borderColor: '#facc15',
-    borderWidth: 3,
+    borderWidth: 2,
   },
   label: {
     color: '#ffffff',

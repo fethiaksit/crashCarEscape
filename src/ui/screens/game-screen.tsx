@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GameBoard } from '@/src/game/components/game-board';
@@ -11,6 +11,7 @@ const STATUS_TEXT: Record<string, string> = {
 };
 
 export function GameScreen() {
+  const { width, height } = useWindowDimensions();
   const levels = useGameStore((state) => state.levels);
   const level = useGameStore((state) => state.level);
   const status = useGameStore((state) => state.status);
@@ -20,12 +21,16 @@ export function GameScreen() {
   const openLevelSelect = useGameStore((state) => state.openLevelSelect);
   const isLastLevel = levels[levels.length - 1]?.id === level.id;
 
+  const boardPixelSize = useMemo(() => {
+    const horizontal = Math.min(width - 24, 560);
+    const vertical = Math.max(240, height - 290);
+    return Math.max(220, Math.min(horizontal, vertical));
+  }, [height, width]);
+
   const showOverlay = status !== 'playing';
 
   useEffect(() => {
-    if (status !== 'won') {
-      return;
-    }
+    if (status !== 'won') return;
 
     const timer = setTimeout(() => {
       goToNextLevel();
@@ -39,10 +44,10 @@ export function GameScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>Crash Car Escape</Text>
         <Text style={styles.levelLabel}>{level.name}</Text>
-        <Text style={styles.hint}>Tap a car to auto-send it to its own matching parking spot.</Text>
+        <Text style={styles.hint}>Arabaya dokun: sistem kendi rengine ait park alanına otomatik yollar.</Text>
 
-        <View style={styles.boardWrap}>
-          <GameBoard />
+        <View style={[styles.boardWrap, { width: boardPixelSize, height: boardPixelSize }]}> 
+          <GameBoard boardPixelSize={boardPixelSize} />
           {showOverlay && (
             <View style={styles.overlay}>
               <Text style={styles.overlayTitle}>{STATUS_TEXT[status]}</Text>
@@ -79,8 +84,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
+    justifyContent: 'space-evenly',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
   },
   title: {
     fontSize: 28,
@@ -93,11 +100,13 @@ const styles = StyleSheet.create({
   },
   hint: {
     color: '#94a3b8',
-    fontSize: 13,
-    marginBottom: 8,
+    fontSize: 12,
+    textAlign: 'center',
   },
   boardWrap: {
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -122,7 +131,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   buttonRow: {
-    marginTop: 14,
     flexDirection: 'row',
     gap: 12,
   },
