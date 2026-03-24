@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -5,18 +6,33 @@ import { GameBoard } from '@/src/game/components/game-board';
 import { useGameStore } from '@/src/game/store/use-game-store';
 
 const STATUS_TEXT: Record<string, string> = {
-  won: 'You win!',
+  won: 'Kazandın',
   failed: 'Level failed',
 };
 
 export function GameScreen() {
+  const levels = useGameStore((state) => state.levels);
   const level = useGameStore((state) => state.level);
   const status = useGameStore((state) => state.status);
   const statusMessage = useGameStore((state) => state.statusMessage);
+  const goToNextLevel = useGameStore((state) => state.goToNextLevel);
   const restartLevel = useGameStore((state) => state.restartLevel);
   const openHome = useGameStore((state) => state.openHome);
+  const isLastLevel = levels[levels.length - 1]?.id === level.id;
 
   const showOverlay = status !== 'playing';
+
+  useEffect(() => {
+    if (status !== 'won') {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      goToNextLevel();
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [goToNextLevel, status]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -31,6 +47,11 @@ export function GameScreen() {
             <View style={styles.overlay}>
               <Text style={styles.overlayTitle}>{STATUS_TEXT[status]}</Text>
               {!!statusMessage && <Text style={styles.overlayMessage}>{statusMessage}</Text>}
+              {status === 'won' && (
+                <Text style={styles.overlayMessage}>
+                  {isLastLevel ? 'Tüm bölümler tamamlandı! Ana menüye dönülüyor...' : 'Sıradaki bölüm yükleniyor...'}
+                </Text>
+              )}
             </View>
           )}
         </View>

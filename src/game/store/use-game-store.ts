@@ -25,6 +25,7 @@ type GameStore = {
   sendSelectedCarToSpot: (spotId: string) => void;
   clearStatusMessage: () => void;
   advanceMovingCar: () => void;
+  goToNextLevel: () => void;
 };
 
 const cloneCars = (cars: Car[]) => cars.map((car) => ({ ...car, position: { ...car.position } }));
@@ -208,6 +209,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
   clearStatusMessage: () => set({ statusMessage: '' }),
+  goToNextLevel: () => {
+    const state = get();
+    const currentLevelIndex = state.levels.findIndex((level) => level.id === state.level.id);
+    const nextLevel = state.levels[currentLevelIndex + 1];
+
+    if (!nextLevel) {
+      set({ currentScreen: 'home' });
+      return;
+    }
+
+    state.startLevel(nextLevel.id);
+  },
   advanceMovingCar: () => {
     const state = get();
     if (!state.movingCarId || state.movingPath.length === 0) {
@@ -262,7 +275,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       movingPath: [],
       parkedCarIds,
       status: hasWon ? 'won' : state.status,
-      statusMessage: hasWon ? 'All cars parked in matching spots!' : state.statusMessage,
+      statusMessage: hasWon ? 'Tüm arabalar doğru yerlere park edildi!' : state.statusMessage,
       selectedCarId: hasWon ? undefined : state.selectedCarId,
     });
   },
