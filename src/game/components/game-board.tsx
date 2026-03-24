@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { toBoardPixels, getBoardPixelSize } from '@/src/game/components/board-coordinates';
 import { CarPiece } from '@/src/game/components/car-piece';
 import { useGameStore } from '@/src/game/store/use-game-store';
 
 const TILE_SIZE = 56;
+const BOARD_TRANSFORM = { originX: 0, originY: 0, scale: 1 } as const;
 
 export function GameBoard() {
   const level = useGameStore((state) => state.level);
@@ -15,8 +17,8 @@ export function GameBoard() {
   const tryMoveCarToOwnSpot = useGameStore((state) => state.tryMoveCarToOwnSpot);
   const advanceMovingCar = useGameStore((state) => state.advanceMovingCar);
 
-  const boardWidth = level.boardSize.width * TILE_SIZE;
-  const boardHeight = level.boardSize.height * TILE_SIZE;
+  const boardWidth = getBoardPixelSize(level.boardSize.width, TILE_SIZE, BOARD_TRANSFORM);
+  const boardHeight = getBoardPixelSize(level.boardSize.height, TILE_SIZE, BOARD_TRANSFORM);
 
   useEffect(() => {
     if (!movingCarId) {
@@ -45,6 +47,7 @@ export function GameBoard() {
         const x = index % level.boardSize.width;
         const y = Math.floor(index / level.boardSize.width);
         const isDark = (x + y) % 2 === 0;
+        const cellPosition = toBoardPixels(x, y, TILE_SIZE, BOARD_TRANSFORM);
 
         return (
           <View
@@ -52,10 +55,10 @@ export function GameBoard() {
             style={[
               styles.cell,
               {
-                left: x * TILE_SIZE,
-                top: y * TILE_SIZE,
-                width: TILE_SIZE,
-                height: TILE_SIZE,
+                left: cellPosition.x,
+                top: cellPosition.y,
+                width: TILE_SIZE * BOARD_TRANSFORM.scale,
+                height: TILE_SIZE * BOARD_TRANSFORM.scale,
                 backgroundColor: isDark ? '#1f2937' : '#111827',
               },
             ]}
@@ -63,42 +66,51 @@ export function GameBoard() {
         );
       })}
 
-      {level.parkingSpots.map((spot) => (
-        <View
-          key={spot.id}
-          style={[
-            styles.parkingSpot,
-            {
-              width: TILE_SIZE,
-              height: TILE_SIZE,
-              left: spot.position.x * TILE_SIZE,
-              top: spot.position.y * TILE_SIZE,
-              borderColor: spot.color,
-            },
-          ]}
-        />
-      ))}
+      {level.parkingSpots.map((spot) => {
+        const position = toBoardPixels(spot.position.x, spot.position.y, TILE_SIZE, BOARD_TRANSFORM);
 
-      {level.obstacles.map((obstacle) => (
-        <View
-          key={obstacle.id}
-          style={[
-            styles.obstacle,
-            {
-              width: TILE_SIZE,
-              height: TILE_SIZE,
-              left: obstacle.position.x * TILE_SIZE,
-              top: obstacle.position.y * TILE_SIZE,
-            },
-          ]}
-        />
-      ))}
+        return (
+          <View
+            key={spot.id}
+            style={[
+              styles.parkingSpot,
+              {
+                width: TILE_SIZE * BOARD_TRANSFORM.scale,
+                height: TILE_SIZE * BOARD_TRANSFORM.scale,
+                left: position.x,
+                top: position.y,
+                borderColor: spot.color,
+              },
+            ]}
+          />
+        );
+      })}
+
+      {level.obstacles.map((obstacle) => {
+        const position = toBoardPixels(obstacle.position.x, obstacle.position.y, TILE_SIZE, BOARD_TRANSFORM);
+
+        return (
+          <View
+            key={obstacle.id}
+            style={[
+              styles.obstacle,
+              {
+                width: TILE_SIZE * BOARD_TRANSFORM.scale,
+                height: TILE_SIZE * BOARD_TRANSFORM.scale,
+                left: position.x,
+                top: position.y,
+              },
+            ]}
+          />
+        );
+      })}
 
       {cars.map((car) => (
         <CarPiece
           key={car.id}
           car={car}
           tileSize={TILE_SIZE}
+          boardTransform={BOARD_TRANSFORM}
           isSelected={selectedCarId === car.id}
           onPress={() => {
             if (isInteractionDisabled) {
