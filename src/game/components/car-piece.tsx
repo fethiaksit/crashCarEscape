@@ -1,4 +1,4 @@
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated, {
   Easing,
@@ -31,25 +31,71 @@ function CarPieceComponent({
 }: CarPieceProps) {
   const x = useSharedValue(car.position.x * tileSize);
   const y = useSharedValue(car.position.y * tileSize);
+  const moveTokenRef = useRef(0);
+  const completedAxesRef = useRef(0);
 
   useEffect(() => {
     if (isMoving) {
-      x.value = withTiming(targetPosition.x * tileSize, {
-        duration: 260,
-        easing: Easing.out(Easing.cubic),
-      });
-      y.value = withTiming(
-        targetPosition.y * tileSize,
-        {
-          duration: 260,
-          easing: Easing.out(Easing.cubic),
-        },
-        (finished) => {
-          if (finished) {
-            runOnJS(onMoveComplete)();
-          }
-        },
-      );
+      const targetX = targetPosition.x * tileSize;
+      const targetY = targetPosition.y * tileSize;
+      const shouldAnimateX = x.value !== targetX;
+      const shouldAnimateY = y.value !== targetY;
+      const axesToAnimate = Number(shouldAnimateX) + Number(shouldAnimateY);
+
+      if (!axesToAnimate) {
+        onMoveComplete();
+        return;
+      }
+
+      moveTokenRef.current += 1;
+      const moveToken = moveTokenRef.current;
+      completedAxesRef.current = 0;
+
+      const onAxisDone = () => {
+        if (moveToken !== moveTokenRef.current) {
+          return;
+        }
+
+        completedAxesRef.current += 1;
+        if (completedAxesRef.current >= axesToAnimate) {
+          onMoveComplete();
+        }
+      };
+
+      if (shouldAnimateX) {
+        x.value = withTiming(
+          targetX,
+          {
+            duration: 260,
+            easing: Easing.out(Easing.cubic),
+          },
+          (finished) => {
+            if (finished) {
+              runOnJS(onAxisDone)();
+            }
+          },
+        );
+      } else {
+        x.value = targetX;
+      }
+
+      if (shouldAnimateY) {
+        y.value = withTiming(
+          targetY,
+          {
+            duration: 260,
+            easing: Easing.out(Easing.cubic),
+          },
+          (finished) => {
+            if (finished) {
+              runOnJS(onAxisDone)();
+            }
+          },
+        );
+      } else {
+        y.value = targetY;
+      }
+
       return;
     }
 

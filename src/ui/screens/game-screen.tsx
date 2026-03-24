@@ -14,6 +14,7 @@ export function GameScreen() {
   const status = useGameStore((state) => state.status);
   const statusMessage = useGameStore((state) => state.statusMessage);
   const restartLevel = useGameStore((state) => state.restartLevel);
+  const openHome = useGameStore((state) => state.openHome);
 
   const showOverlay = status !== 'playing';
 
@@ -33,9 +34,14 @@ export function GameScreen() {
           )}
         </View>
 
-        <Pressable style={styles.button} onPress={restartLevel}>
-          <Text style={styles.buttonText}>Restart</Text>
-        </Pressable>
+        <View style={styles.buttonRow}>
+          <Pressable style={styles.button} onPress={restartLevel}>
+            <Text style={styles.buttonText}>Restart</Text>
+          </Pressable>
+          <Pressable style={[styles.button, styles.secondaryButton]} onPress={openHome}>
+            <Text style={styles.buttonText}>Main Menu</Text>
+          </Pressable>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -83,12 +89,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  button: {
+  buttonRow: {
     marginTop: 14,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  button: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
     backgroundColor: '#2563eb',
+  },
+  secondaryButton: {
+    backgroundColor: '#475569',
   },
   buttonText: {
     color: '#eff6ff',
