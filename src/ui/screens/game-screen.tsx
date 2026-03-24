@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GameBoard } from '@/src/game/components/game-board';
@@ -11,16 +11,16 @@ const STATUS_TEXT: Record<string, string> = {
 };
 
 export function GameScreen() {
-  const { width: windowWidth } = useWindowDimensions();
   const levels = useGameStore((state) => state.levels);
   const level = useGameStore((state) => state.level);
   const status = useGameStore((state) => state.status);
   const statusMessage = useGameStore((state) => state.statusMessage);
   const goToNextLevel = useGameStore((state) => state.goToNextLevel);
-  const restartLevel = useGameStore((state) => state.restartLevel);
+  const openHome = useGameStore((state) => state.openHome);
   const openLevelSelect = useGameStore((state) => state.openLevelSelect);
   const isLastLevel = levels[levels.length - 1]?.id === level.id;
   const [boardViewport, setBoardViewport] = useState({ width: 320, height: 320 });
+  const [isPauseMenuOpen, setPauseMenuOpen] = useState(false);
 
   const showOverlay = status !== 'playing';
 
@@ -44,30 +44,9 @@ export function GameScreen() {
     [boardViewport.height, boardViewport.width],
   );
 
-  const sidePanelWidth = useMemo(() => Math.max(220, Math.min(360, windowWidth * 0.34)), [windowWidth]);
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={[styles.sidePanel, { width: sidePanelWidth }]}>
-          <Text style={styles.title}>Crash Car Escape</Text>
-          <Text style={styles.levelLabel}>{level.name}</Text>
-          <Text style={styles.hint}>Tap a car to auto-send it to its own matching parking spot.</Text>
-
-          <View style={styles.sidePanelSpacer} />
-
-          {!!statusMessage && status === 'playing' && <Text style={styles.message}>{statusMessage}</Text>}
-
-          <View style={styles.buttonColumn}>
-            <Pressable style={styles.button} onPress={restartLevel}>
-              <Text style={styles.buttonText}>Restart</Text>
-            </Pressable>
-            <Pressable style={[styles.button, styles.secondaryButton]} onPress={openLevelSelect}>
-              <Text style={styles.buttonText}>Levels</Text>
-            </Pressable>
-          </View>
-        </View>
-
         <View
           style={styles.boardArea}
           onLayout={(event) => {
@@ -89,6 +68,39 @@ export function GameScreen() {
             )}
           </View>
         </View>
+
+        <Pressable
+          style={styles.pauseButton}
+          onPress={() => setPauseMenuOpen((prev) => !prev)}
+          accessibilityRole="button"
+          accessibilityLabel="Pause menu">
+          <Text style={styles.pauseIcon}>⏸</Text>
+        </Pressable>
+
+        {isPauseMenuOpen && (
+          <View style={styles.pauseOverlay}>
+            <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setPauseMenuOpen(false)} />
+            <View style={styles.pauseCard}>
+              <Text style={styles.pauseTitle}>Paused</Text>
+              <Pressable
+                style={styles.pauseAction}
+                onPress={() => {
+                  setPauseMenuOpen(false);
+                  openHome();
+                }}>
+                <Text style={styles.pauseActionText}>Return to Home Page</Text>
+              </Pressable>
+              <Pressable
+                style={styles.pauseAction}
+                onPress={() => {
+                  setPauseMenuOpen(false);
+                  openLevelSelect();
+                }}>
+                <Text style={styles.pauseActionText}>Return to Level Page</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -101,46 +113,17 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 10,
-  },
-  sidePanel: {
-    backgroundColor: '#0b1220',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  sidePanelSpacer: {
-    flex: 1,
-    minHeight: 8,
-  },
-  title: {
-    fontSize: 30,
-    color: '#f8fafc',
-    fontWeight: '800',
-  },
-  levelLabel: {
-    fontSize: 16,
-    color: '#cbd5e1',
-  },
-  hint: {
-    color: '#94a3b8',
-    fontSize: 13,
+    position: 'relative',
   },
   boardArea: {
     flex: 1,
-    minWidth: 220,
     alignItems: 'center',
     justifyContent: 'center',
   },
   boardWrap: {
     position: 'relative',
+    width: '100%',
+    height: '100%',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -160,26 +143,59 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  message: {
-    color: '#f8fafc',
-    fontSize: 13,
+  pauseButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(15, 23, 42, 0.86)',
+    borderWidth: 1,
+    borderColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
-  buttonColumn: {
+  pauseIcon: {
+    fontSize: 20,
+    color: '#f8fafc',
+    fontWeight: '700',
+  },
+  pauseOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(2, 6, 23, 0.58)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    zIndex: 20,
+  },
+  pauseCard: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 14,
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#334155',
+    padding: 18,
     gap: 10,
   },
-  button: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+  pauseTitle: {
+    color: '#f8fafc',
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  pauseAction: {
+    backgroundColor: '#1e293b',
     borderRadius: 10,
-    backgroundColor: '#2563eb',
-    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
-  secondaryButton: {
-    backgroundColor: '#475569',
-  },
-  buttonText: {
-    color: '#eff6ff',
+  pauseActionText: {
+    color: '#e2e8f0',
     fontWeight: '700',
-    fontSize: 16,
+    textAlign: 'center',
   },
 });

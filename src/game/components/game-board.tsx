@@ -34,7 +34,7 @@ export function GameBoard({ viewportWidth, viewportHeight }: GameBoardProps) {
         viewportHeight,
         levelBounds,
         tileSize: TILE_SIZE,
-        padding: 10,
+        padding: 0,
       }),
     [viewportHeight, viewportWidth, levelBounds],
   );
@@ -163,11 +163,8 @@ const styles = StyleSheet.create({
   },
   board: {
     position: 'relative',
-    borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#334155',
-    backgroundColor: '#0b1220',
+    backgroundColor: '#111827',
   },
   cell: {
     position: 'absolute',
