@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,6 +19,7 @@ export function GameScreen() {
   const restartLevel = useGameStore((state) => state.restartLevel);
   const openLevelSelect = useGameStore((state) => state.openLevelSelect);
   const isLastLevel = levels[levels.length - 1]?.id === level.id;
+  const [boardViewport, setBoardViewport] = useState({ width: 320, height: 320 });
 
   const showOverlay = status !== 'playing';
 
@@ -34,6 +35,14 @@ export function GameScreen() {
     return () => clearTimeout(timer);
   }, [goToNextLevel, status]);
 
+  const normalizedBoardViewport = useMemo(
+    () => ({
+      width: Math.max(120, boardViewport.width),
+      height: Math.max(120, boardViewport.height),
+    }),
+    [boardViewport.height, boardViewport.width],
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -41,19 +50,26 @@ export function GameScreen() {
         <Text style={styles.levelLabel}>{level.name}</Text>
         <Text style={styles.hint}>Tap a car to auto-send it to its own matching parking spot.</Text>
 
-        <View style={styles.boardWrap}>
-          <GameBoard />
-          {showOverlay && (
-            <View style={styles.overlay}>
-              <Text style={styles.overlayTitle}>{STATUS_TEXT[status]}</Text>
-              {!!statusMessage && <Text style={styles.overlayMessage}>{statusMessage}</Text>}
-              {status === 'won' && (
-                <Text style={styles.overlayMessage}>
-                  {isLastLevel ? 'Tüm bölümler tamamlandı! Bölüm seçimine dönülüyor...' : 'Sıradaki bölüm yükleniyor...'}
-                </Text>
-              )}
-            </View>
-          )}
+        <View
+          style={styles.boardArea}
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            setBoardViewport({ width, height });
+          }}>
+          <View style={styles.boardWrap}>
+            <GameBoard viewportWidth={normalizedBoardViewport.width} viewportHeight={normalizedBoardViewport.height} />
+            {showOverlay && (
+              <View style={styles.overlay}>
+                <Text style={styles.overlayTitle}>{STATUS_TEXT[status]}</Text>
+                {!!statusMessage && <Text style={styles.overlayMessage}>{statusMessage}</Text>}
+                {status === 'won' && (
+                  <Text style={styles.overlayMessage}>
+                    {isLastLevel ? 'Tüm bölümler tamamlandı! Bölüm seçimine dönülüyor...' : 'Sıradaki bölüm yükleniyor...'}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
         </View>
 
         {!!statusMessage && status === 'playing' && <Text style={styles.message}>{statusMessage}</Text>}
@@ -79,8 +95,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     gap: 10,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   title: {
     fontSize: 28,
@@ -94,7 +113,15 @@ const styles = StyleSheet.create({
   hint: {
     color: '#94a3b8',
     fontSize: 13,
-    marginBottom: 8,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  boardArea: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 220,
   },
   boardWrap: {
     position: 'relative',
@@ -122,7 +149,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   buttonRow: {
-    marginTop: 14,
+    marginTop: 4,
     flexDirection: 'row',
     gap: 12,
   },
