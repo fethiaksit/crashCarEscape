@@ -13,24 +13,18 @@ export const LEVEL_003: LevelDefinition = {
       label: 'R',
       color: '#ef4444',
       position: { x: 1, y: 2 },
-      direction: 'right',
-      requiredToExit: true,
     },
     {
-      id: 'car-gold',
-      label: 'Y',
-      color: '#eab308',
+      id: 'car-green',
+      label: 'G',
+      color: '#22c55e',
       position: { x: 0, y: 5 },
-      direction: 'up',
-      requiredToExit: false,
     },
     {
       id: 'car-cyan',
       label: 'C',
       color: '#06b6d4',
       position: { x: 6, y: 0 },
-      direction: 'down',
-      requiredToExit: false,
     },
   ],
   obstacles: [
@@ -47,11 +41,24 @@ export const LEVEL_003: LevelDefinition = {
       position: { x: 2, y: 0 },
     },
   ],
-  exits: [
+  parkingSpots: [
     {
-      id: 'exit-main',
+      id: 'park-red',
       position: { x: 6, y: 2 },
-      acceptsCarIds: ['car-red'],
+      color: '#ef4444',
+      acceptsCarId: 'car-red',
+    },
+    {
+      id: 'park-green',
+      position: { x: 0, y: 0 },
+      color: '#22c55e',
+      acceptsCarId: 'car-green',
+    },
+    {
+      id: 'park-cyan',
+      position: { x: 5, y: 5 },
+      color: '#06b6d4',
+      acceptsCarId: 'car-cyan',
     },
   ],
 };

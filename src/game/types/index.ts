@@ -1,5 +1,3 @@
-export type Direction = 'up' | 'down' | 'left' | 'right';
-
 export type Position = {
   x: number;
   y: number;
@@ -10,8 +8,6 @@ export type Car = {
   label: string;
   color: string;
   position: Position;
-  direction: Direction;
-  requiredToExit: boolean;
 };
 
 export type Obstacle = {
@@ -19,10 +15,11 @@ export type Obstacle = {
   position: Position;
 };
 
-export type Exit = {
+export type ParkingSpot = {
   id: string;
   position: Position;
-  acceptsCarIds?: string[];
+  color: string;
+  acceptsCarId?: string;
 };
 
 export type BoardSize = {
@@ -38,16 +35,5 @@ export type LevelDefinition = {
   boardSize: BoardSize;
   cars: Car[];
   obstacles: Obstacle[];
-  exits: Exit[];
-};
-
-export type MoveStopReason = 'blocked' | 'exited' | 'invalid' | 'none';
-
-export type MoveResolution = {
-  carId: string;
-  from: Position;
-  to: Position;
-  reason: MoveStopReason;
-  exitId?: string;
-  failReason?: string;
+  parkingSpots: ParkingSpot[];
 };

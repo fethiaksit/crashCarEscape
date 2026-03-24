@@ -23,6 +23,7 @@ export function GameScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>Crash Car Escape</Text>
         <Text style={styles.levelLabel}>{level.name}</Text>
+        <Text style={styles.hint}>Select a car, draw a path, then release to park.</Text>
 
         <View style={styles.boardWrap}>
           <GameBoard />
@@ -33,6 +34,8 @@ export function GameScreen() {
             </View>
           )}
         </View>
+
+        {!!statusMessage && status === 'playing' && <Text style={styles.message}>{statusMessage}</Text>}
 
         <View style={styles.buttonRow}>
           <Pressable style={styles.button} onPress={restartLevel}>
@@ -66,7 +69,11 @@ const styles = StyleSheet.create({
   levelLabel: {
     fontSize: 16,
     color: '#cbd5e1',
-    marginBottom: 12,
+  },
+  hint: {
+    color: '#94a3b8',
+    fontSize: 13,
+    marginBottom: 8,
   },
   boardWrap: {
     position: 'relative',
@@ -88,6 +95,10 @@ const styles = StyleSheet.create({
     color: '#e2e8f0',
     fontSize: 14,
     textAlign: 'center',
+  },
+  message: {
+    color: '#f8fafc',
+    fontSize: 13,
   },
   buttonRow: {
     marginTop: 14,
