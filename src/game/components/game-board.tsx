@@ -1,38 +1,19 @@
-import { useEffect, useMemo } from 'react';
-import { PanResponder, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { CarPiece } from '@/src/game/components/car-piece';
 import { useGameStore } from '@/src/game/store/use-game-store';
 
 const TILE_SIZE = 56;
 
-const pointFromTouch = (
-  x: number,
-  y: number,
-  boardWidth: number,
-  boardHeight: number,
-): { x: number; y: number } | undefined => {
-  if (x < 0 || y < 0 || x >= boardWidth || y >= boardHeight) {
-    return undefined;
-  }
-
-  return {
-    x: Math.floor(x / TILE_SIZE),
-    y: Math.floor(y / TILE_SIZE),
-  };
-};
-
 export function GameBoard() {
   const level = useGameStore((state) => state.level);
   const cars = useGameStore((state) => state.cars);
   const selectedCarId = useGameStore((state) => state.selectedCarId);
   const movingCarId = useGameStore((state) => state.movingCarId);
-  const drawingPath = useGameStore((state) => state.drawingPath);
   const status = useGameStore((state) => state.status);
   const selectCar = useGameStore((state) => state.selectCar);
-  const startDrawingPath = useGameStore((state) => state.startDrawingPath);
-  const extendDrawingPath = useGameStore((state) => state.extendDrawingPath);
-  const finishDrawingPath = useGameStore((state) => state.finishDrawingPath);
+  const sendSelectedCarToSpot = useGameStore((state) => state.sendSelectedCarToSpot);
   const advanceMovingCar = useGameStore((state) => state.advanceMovingCar);
 
   const boardWidth = level.boardSize.width * TILE_SIZE;
@@ -50,51 +31,10 @@ export function GameBoard() {
     return () => clearTimeout(timer);
   }, [advanceMovingCar, movingCarId, cars]);
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponderCapture: () => status === 'playing' && !!selectedCarId && !movingCarId,
-        onMoveShouldSetPanResponderCapture: () => status === 'playing' && !!selectedCarId && !movingCarId,
-        onStartShouldSetPanResponder: () => status === 'playing' && !!selectedCarId && !movingCarId,
-        onMoveShouldSetPanResponder: () => status === 'playing' && !!selectedCarId && !movingCarId,
-        onPanResponderGrant: (evt) => {
-          const point = pointFromTouch(
-            evt.nativeEvent.locationX,
-            evt.nativeEvent.locationY,
-            boardWidth,
-            boardHeight,
-          );
-
-          if (point) {
-            startDrawingPath(point);
-          }
-        },
-        onPanResponderMove: (evt) => {
-          const point = pointFromTouch(
-            evt.nativeEvent.locationX,
-            evt.nativeEvent.locationY,
-            boardWidth,
-            boardHeight,
-          );
-
-          if (point) {
-            extendDrawingPath(point);
-          }
-        },
-        onPanResponderRelease: () => {
-          finishDrawingPath();
-        },
-        onPanResponderTerminate: () => {
-          finishDrawingPath();
-        },
-        onPanResponderTerminationRequest: () => false,
-      }),
-    [boardHeight, boardWidth, extendDrawingPath, finishDrawingPath, movingCarId, selectedCarId, startDrawingPath, status],
-  );
+  const isInteractionDisabled = status !== 'playing' || !!movingCarId;
 
   return (
     <View
-      {...panResponder.panHandlers}
       style={[
         styles.board,
         {
@@ -125,7 +65,7 @@ export function GameBoard() {
       })}
 
       {level.parkingSpots.map((spot) => (
-        <View
+        <Pressable
           key={spot.id}
           style={[
             styles.parkingSpot,
@@ -137,6 +77,8 @@ export function GameBoard() {
               borderColor: spot.color,
             },
           ]}
+          disabled={isInteractionDisabled || !selectedCarId}
+          onPress={() => sendSelectedCarToSpot(spot.id)}
         />
       ))}
 
@@ -150,19 +92,6 @@ export function GameBoard() {
               height: TILE_SIZE,
               left: obstacle.position.x * TILE_SIZE,
               top: obstacle.position.y * TILE_SIZE,
-            },
-          ]}
-        />
-      ))}
-
-      {drawingPath.map((point, index) => (
-        <View
-          key={`path-${point.x}-${point.y}-${index}`}
-          style={[
-            styles.pathDot,
-            {
-              left: point.x * TILE_SIZE + TILE_SIZE / 2 - 8,
-              top: point.y * TILE_SIZE + TILE_SIZE / 2 - 8,
             },
           ]}
         />
@@ -204,13 +133,5 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderRadius: 10,
     backgroundColor: '#0f172a',
-  },
-  pathDot: {
-    position: 'absolute',
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#f8fafc',
-    opacity: 0.7,
   },
 });
