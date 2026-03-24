@@ -17,7 +17,7 @@ export function GameScreen() {
   const statusMessage = useGameStore((state) => state.statusMessage);
   const goToNextLevel = useGameStore((state) => state.goToNextLevel);
   const restartLevel = useGameStore((state) => state.restartLevel);
-  const openHome = useGameStore((state) => state.openHome);
+  const openLevelSelect = useGameStore((state) => state.openLevelSelect);
   const isLastLevel = levels[levels.length - 1]?.id === level.id;
 
   const showOverlay = status !== 'playing';
@@ -39,7 +39,7 @@ export function GameScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>Crash Car Escape</Text>
         <Text style={styles.levelLabel}>{level.name}</Text>
-        <Text style={styles.hint}>Tap a car, then tap a matching parking spot to auto-drive there.</Text>
+        <Text style={styles.hint}>Tap a car to auto-send it to its own matching parking spot.</Text>
 
         <View style={styles.boardWrap}>
           <GameBoard />
@@ -49,7 +49,7 @@ export function GameScreen() {
               {!!statusMessage && <Text style={styles.overlayMessage}>{statusMessage}</Text>}
               {status === 'won' && (
                 <Text style={styles.overlayMessage}>
-                  {isLastLevel ? 'Tüm bölümler tamamlandı! Ana menüye dönülüyor...' : 'Sıradaki bölüm yükleniyor...'}
+                  {isLastLevel ? 'Tüm bölümler tamamlandı! Bölüm seçimine dönülüyor...' : 'Sıradaki bölüm yükleniyor...'}
                 </Text>
               )}
             </View>
@@ -62,8 +62,8 @@ export function GameScreen() {
           <Pressable style={styles.button} onPress={restartLevel}>
             <Text style={styles.buttonText}>Restart</Text>
           </Pressable>
-          <Pressable style={[styles.button, styles.secondaryButton]} onPress={openHome}>
-            <Text style={styles.buttonText}>Main Menu</Text>
+          <Pressable style={[styles.button, styles.secondaryButton]} onPress={openLevelSelect}>
+            <Text style={styles.buttonText}>Levels</Text>
           </Pressable>
         </View>
       </View>
