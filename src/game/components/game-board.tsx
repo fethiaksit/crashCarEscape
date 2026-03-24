@@ -53,6 +53,8 @@ export function GameBoard() {
   const panResponder = useMemo(
     () =>
       PanResponder.create({
+        onStartShouldSetPanResponderCapture: () => status === 'playing' && !!selectedCarId && !movingCarId,
+        onMoveShouldSetPanResponderCapture: () => status === 'playing' && !!selectedCarId && !movingCarId,
         onStartShouldSetPanResponder: () => status === 'playing' && !!selectedCarId && !movingCarId,
         onMoveShouldSetPanResponder: () => status === 'playing' && !!selectedCarId && !movingCarId,
         onPanResponderGrant: (evt) => {
@@ -82,6 +84,10 @@ export function GameBoard() {
         onPanResponderRelease: () => {
           finishDrawingPath();
         },
+        onPanResponderTerminate: () => {
+          finishDrawingPath();
+        },
+        onPanResponderTerminationRequest: () => false,
       }),
     [boardHeight, boardWidth, extendDrawingPath, finishDrawingPath, movingCarId, selectedCarId, startDrawingPath, status],
   );
