@@ -1,26 +1,99 @@
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { PanResponder, StyleSheet, View } from 'react-native';
 
 import { CarPiece } from '@/src/game/components/car-piece';
 import { useGameStore } from '@/src/game/store/use-game-store';
 
 const TILE_SIZE = 56;
 
+const pointFromTouch = (
+  x: number,
+  y: number,
+  boardWidth: number,
+  boardHeight: number,
+): { x: number; y: number } | undefined => {
+  if (x < 0 || y < 0 || x >= boardWidth || y >= boardHeight) {
+    return undefined;
+  }
+
+  return {
+    x: Math.floor(x / TILE_SIZE),
+    y: Math.floor(y / TILE_SIZE),
+  };
+};
+
 export function GameBoard() {
   const level = useGameStore((state) => state.level);
   const cars = useGameStore((state) => state.cars);
   const selectedCarId = useGameStore((state) => state.selectedCarId);
   const movingCarId = useGameStore((state) => state.movingCarId);
-  const pendingMove = useGameStore((state) => state.pendingMove);
-  const tapCar = useGameStore((state) => state.tapCar);
-  const completeMove = useGameStore((state) => state.completeMove);
+  const drawingPath = useGameStore((state) => state.drawingPath);
+  const status = useGameStore((state) => state.status);
+  const selectCar = useGameStore((state) => state.selectCar);
+  const startDrawingPath = useGameStore((state) => state.startDrawingPath);
+  const extendDrawingPath = useGameStore((state) => state.extendDrawingPath);
+  const finishDrawingPath = useGameStore((state) => state.finishDrawingPath);
+  const advanceMovingCar = useGameStore((state) => state.advanceMovingCar);
+
+  const boardWidth = level.boardSize.width * TILE_SIZE;
+  const boardHeight = level.boardSize.height * TILE_SIZE;
+
+  useEffect(() => {
+    if (!movingCarId) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      advanceMovingCar();
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [advanceMovingCar, movingCarId, cars]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => status === 'playing' && !!selectedCarId && !movingCarId,
+        onMoveShouldSetPanResponder: () => status === 'playing' && !!selectedCarId && !movingCarId,
+        onPanResponderGrant: (evt) => {
+          const point = pointFromTouch(
+            evt.nativeEvent.locationX,
+            evt.nativeEvent.locationY,
+            boardWidth,
+            boardHeight,
+          );
+
+          if (point) {
+            startDrawingPath(point);
+          }
+        },
+        onPanResponderMove: (evt) => {
+          const point = pointFromTouch(
+            evt.nativeEvent.locationX,
+            evt.nativeEvent.locationY,
+            boardWidth,
+            boardHeight,
+          );
+
+          if (point) {
+            extendDrawingPath(point);
+          }
+        },
+        onPanResponderRelease: () => {
+          finishDrawingPath();
+        },
+      }),
+    [boardHeight, boardWidth, extendDrawingPath, finishDrawingPath, movingCarId, selectedCarId, startDrawingPath, status],
+  );
 
   return (
     <View
+      {...panResponder.panHandlers}
       style={[
         styles.board,
         {
-          width: level.boardSize.width * TILE_SIZE,
-          height: level.boardSize.height * TILE_SIZE,
+          width: boardWidth,
+          height: boardHeight,
         },
       ]}>
       {Array.from({ length: level.boardSize.width * level.boardSize.height }).map((_, index) => {
@@ -45,16 +118,17 @@ export function GameBoard() {
         );
       })}
 
-      {level.exits.map((exit) => (
+      {level.parkingSpots.map((spot) => (
         <View
-          key={exit.id}
+          key={spot.id}
           style={[
-            styles.exit,
+            styles.parkingSpot,
             {
               width: TILE_SIZE,
               height: TILE_SIZE,
-              left: exit.position.x * TILE_SIZE,
-              top: exit.position.y * TILE_SIZE,
+              left: spot.position.x * TILE_SIZE,
+              top: spot.position.y * TILE_SIZE,
+              borderColor: spot.color,
             },
           ]}
         />
@@ -75,16 +149,26 @@ export function GameBoard() {
         />
       ))}
 
+      {drawingPath.map((point, index) => (
+        <View
+          key={`path-${point.x}-${point.y}-${index}`}
+          style={[
+            styles.pathDot,
+            {
+              left: point.x * TILE_SIZE + TILE_SIZE / 2 - 8,
+              top: point.y * TILE_SIZE + TILE_SIZE / 2 - 8,
+            },
+          ]}
+        />
+      ))}
+
       {cars.map((car) => (
         <CarPiece
           key={car.id}
           car={car}
           tileSize={TILE_SIZE}
           isSelected={selectedCarId === car.id}
-          isMoving={movingCarId === car.id}
-          targetPosition={pendingMove?.carId === car.id ? pendingMove.to : car.position}
-          onPress={() => tapCar(car.id)}
-          onMoveComplete={completeMove}
+          onPress={() => selectCar(car.id)}
         />
       ))}
     </View>
@@ -109,10 +193,18 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#9ca3af',
   },
-  exit: {
+  parkingSpot: {
     position: 'absolute',
-    backgroundColor: '#22c55e',
-    borderWidth: 2,
-    borderColor: '#86efac',
+    borderWidth: 4,
+    borderRadius: 10,
+    backgroundColor: '#0f172a',
+  },
+  pathDot: {
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    opacity: 0.7,
   },
 });
