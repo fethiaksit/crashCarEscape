@@ -1,12 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { CarPiece } from '@/src/game/components/car-piece';
 import { useGameStore } from '@/src/game/store/use-game-store';
 
-const TILE_SIZE = 56;
+type GameBoardProps = {
+  boardPixelSize: number;
+};
 
-export function GameBoard() {
+export function GameBoard({ boardPixelSize }: GameBoardProps) {
   const level = useGameStore((state) => state.level);
   const cars = useGameStore((state) => state.cars);
   const selectedCarId = useGameStore((state) => state.selectedCarId);
@@ -15,17 +17,20 @@ export function GameBoard() {
   const tryMoveCarToOwnSpot = useGameStore((state) => state.tryMoveCarToOwnSpot);
   const advanceMovingCar = useGameStore((state) => state.advanceMovingCar);
 
-  const boardWidth = level.boardSize.width * TILE_SIZE;
-  const boardHeight = level.boardSize.height * TILE_SIZE;
+  const tileSize = useMemo(() => {
+    const maxDimension = Math.max(level.boardSize.width, level.boardSize.height);
+    return Math.max(20, Math.floor(boardPixelSize / maxDimension));
+  }, [boardPixelSize, level.boardSize.height, level.boardSize.width]);
+
+  const boardWidth = level.boardSize.width * tileSize;
+  const boardHeight = level.boardSize.height * tileSize;
 
   useEffect(() => {
-    if (!movingCarId) {
-      return;
-    }
+    if (!movingCarId) return;
 
     const timer = setTimeout(() => {
       advanceMovingCar();
-    }, 120);
+    }, 90);
 
     return () => clearTimeout(timer);
   }, [advanceMovingCar, movingCarId, cars]);
@@ -33,14 +38,7 @@ export function GameBoard() {
   const isInteractionDisabled = status !== 'playing' || !!movingCarId;
 
   return (
-    <View
-      style={[
-        styles.board,
-        {
-          width: boardWidth,
-          height: boardHeight,
-        },
-      ]}>
+    <View style={[styles.board, { width: boardWidth, height: boardHeight }]}>
       {Array.from({ length: level.boardSize.width * level.boardSize.height }).map((_, index) => {
         const x = index % level.boardSize.width;
         const y = Math.floor(index / level.boardSize.width);
@@ -52,10 +50,10 @@ export function GameBoard() {
             style={[
               styles.cell,
               {
-                left: x * TILE_SIZE,
-                top: y * TILE_SIZE,
-                width: TILE_SIZE,
-                height: TILE_SIZE,
+                left: x * tileSize,
+                top: y * tileSize,
+                width: tileSize,
+                height: tileSize,
                 backgroundColor: isDark ? '#1f2937' : '#111827',
               },
             ]}
@@ -69,11 +67,13 @@ export function GameBoard() {
           style={[
             styles.parkingSpot,
             {
-              width: TILE_SIZE,
-              height: TILE_SIZE,
-              left: spot.position.x * TILE_SIZE,
-              top: spot.position.y * TILE_SIZE,
+              width: tileSize,
+              height: tileSize,
+              left: spot.position.x * tileSize,
+              top: spot.position.y * tileSize,
               borderColor: spot.color,
+              borderWidth: Math.max(2, Math.floor(tileSize * 0.08)),
+              borderRadius: Math.max(6, Math.floor(tileSize * 0.18)),
             },
           ]}
         />
@@ -85,10 +85,11 @@ export function GameBoard() {
           style={[
             styles.obstacle,
             {
-              width: TILE_SIZE,
-              height: TILE_SIZE,
-              left: obstacle.position.x * TILE_SIZE,
-              top: obstacle.position.y * TILE_SIZE,
+              width: tileSize,
+              height: tileSize,
+              left: obstacle.position.x * tileSize,
+              top: obstacle.position.y * tileSize,
+              borderWidth: Math.max(1, Math.floor(tileSize * 0.06)),
             },
           ]}
         />
@@ -98,13 +99,10 @@ export function GameBoard() {
         <CarPiece
           key={car.id}
           car={car}
-          tileSize={TILE_SIZE}
+          tileSize={tileSize}
           isSelected={selectedCarId === car.id}
           onPress={() => {
-            if (isInteractionDisabled) {
-              return;
-            }
-
+            if (isInteractionDisabled) return;
             tryMoveCarToOwnSpot(car.id);
           }}
         />
@@ -128,13 +126,10 @@ const styles = StyleSheet.create({
   obstacle: {
     position: 'absolute',
     backgroundColor: '#6b7280',
-    borderWidth: 2,
     borderColor: '#9ca3af',
   },
   parkingSpot: {
     position: 'absolute',
-    borderWidth: 4,
-    borderRadius: 10,
     backgroundColor: '#0f172a',
   },
 });
