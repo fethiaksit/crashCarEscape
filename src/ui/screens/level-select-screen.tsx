@@ -7,9 +7,7 @@ import { LevelGrid } from '@/src/ui/components/level-grid';
 export function LevelSelectScreen() {
   const levels = useGameStore((state) => state.levels);
   const selectedLevelId = useGameStore((state) => state.selectedLevelId);
-  const highestUnlockedLevelIndex = useGameStore((state) => state.highestUnlockedLevelIndex);
   const completedLevelIds = useGameStore((state) => state.completedLevelIds);
-  const isLevelUnlocked = useGameStore((state) => state.isLevelUnlocked);
   const startLevel = useGameStore((state) => state.startLevel);
   const openHome = useGameStore((state) => state.openHome);
 
@@ -24,13 +22,10 @@ export function LevelSelectScreen() {
           <View style={styles.backButtonPlaceholder} />
         </View>
 
-        <Text style={styles.progressText}>
-          İlerleme: {highestUnlockedLevelIndex + 1}/{levels.length} açık
-        </Text>
+        <Text style={styles.progressText}>Toplam bölüm: {levels.length}</Text>
 
         <LevelGrid
           levels={levels}
-          isLevelUnlocked={isLevelUnlocked}
           selectedLevelId={selectedLevelId}
           completedLevelIds={completedLevelIds}
           onSelectLevel={startLevel}
