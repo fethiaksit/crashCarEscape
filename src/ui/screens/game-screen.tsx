@@ -7,7 +7,7 @@ import { useGameStore } from '@/src/game/store/use-game-store';
 
 const STATUS_TEXT: Record<string, string> = {
   won: 'Kazandın',
-  failed: 'Level failed',
+  failed: 'You lost',
 };
 
 export function GameScreen() {
