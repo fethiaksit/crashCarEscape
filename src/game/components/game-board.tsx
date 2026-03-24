@@ -1,14 +1,23 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { toBoardPixels, getBoardPixelSize } from '@/src/game/components/board-coordinates';
+import {
+  getBoardPixelSize,
+  getLevelBounds,
+  getResponsiveBoardTransform,
+  toBoardPixels,
+} from '@/src/game/components/board-coordinates';
 import { CarPiece } from '@/src/game/components/car-piece';
 import { useGameStore } from '@/src/game/store/use-game-store';
 
-const TILE_SIZE = 56;
-const BOARD_TRANSFORM = { originX: 0, originY: 0, scale: 1 } as const;
+type GameBoardProps = {
+  viewportWidth: number;
+  viewportHeight: number;
+};
 
-export function GameBoard() {
+const TILE_SIZE = 56;
+
+export function GameBoard({ viewportWidth, viewportHeight }: GameBoardProps) {
   const level = useGameStore((state) => state.level);
   const cars = useGameStore((state) => state.cars);
   const selectedCarId = useGameStore((state) => state.selectedCarId);
@@ -17,8 +26,21 @@ export function GameBoard() {
   const tryMoveCarToOwnSpot = useGameStore((state) => state.tryMoveCarToOwnSpot);
   const advanceMovingCar = useGameStore((state) => state.advanceMovingCar);
 
-  const boardWidth = getBoardPixelSize(level.boardSize.width, TILE_SIZE, BOARD_TRANSFORM);
-  const boardHeight = getBoardPixelSize(level.boardSize.height, TILE_SIZE, BOARD_TRANSFORM);
+  const levelBounds = useMemo(() => getLevelBounds(level), [level]);
+  const boardTransform = useMemo(
+    () =>
+      getResponsiveBoardTransform({
+        viewportWidth,
+        viewportHeight,
+        levelBounds,
+        tileSize: TILE_SIZE,
+        padding: 10,
+      }),
+    [viewportHeight, viewportWidth, levelBounds],
+  );
+
+  const boardWidth = getBoardPixelSize(levelBounds.width, TILE_SIZE, boardTransform);
+  const boardHeight = getBoardPixelSize(levelBounds.height, TILE_SIZE, boardTransform);
 
   useEffect(() => {
     if (!movingCarId) {
@@ -37,95 +59,108 @@ export function GameBoard() {
   return (
     <View
       style={[
-        styles.board,
+        styles.viewport,
         {
-          width: boardWidth,
-          height: boardHeight,
+          width: viewportWidth,
+          height: viewportHeight,
         },
       ]}>
-      {Array.from({ length: level.boardSize.width * level.boardSize.height }).map((_, index) => {
-        const x = index % level.boardSize.width;
-        const y = Math.floor(index / level.boardSize.width);
-        const isDark = (x + y) % 2 === 0;
-        const cellPosition = toBoardPixels(x, y, TILE_SIZE, BOARD_TRANSFORM);
+      <View
+        style={[
+          styles.board,
+          {
+            width: boardWidth,
+            height: boardHeight,
+          },
+        ]}>
+        {Array.from({ length: levelBounds.width * levelBounds.height }).map((_, index) => {
+          const x = (index % levelBounds.width) + levelBounds.minX;
+          const y = Math.floor(index / levelBounds.width) + levelBounds.minY;
+          const isDark = (x + y) % 2 === 0;
+          const cellPosition = toBoardPixels(x, y, TILE_SIZE, boardTransform);
 
-        return (
-          <View
-            key={`cell-${x}-${y}`}
-            style={[
-              styles.cell,
-              {
-                left: cellPosition.x,
-                top: cellPosition.y,
-                width: TILE_SIZE * BOARD_TRANSFORM.scale,
-                height: TILE_SIZE * BOARD_TRANSFORM.scale,
-                backgroundColor: isDark ? '#1f2937' : '#111827',
-              },
-            ]}
+          return (
+            <View
+              key={`cell-${x}-${y}`}
+              style={[
+                styles.cell,
+                {
+                  left: cellPosition.x - boardTransform.originX,
+                  top: cellPosition.y - boardTransform.originY,
+                  width: TILE_SIZE * boardTransform.scale,
+                  height: TILE_SIZE * boardTransform.scale,
+                  backgroundColor: isDark ? '#1f2937' : '#111827',
+                },
+              ]}
+            />
+          );
+        })}
+
+        {level.parkingSpots.map((spot) => {
+          const position = toBoardPixels(spot.position.x, spot.position.y, TILE_SIZE, boardTransform);
+
+          return (
+            <View
+              key={spot.id}
+              style={[
+                styles.parkingSpot,
+                {
+                  width: TILE_SIZE * boardTransform.scale,
+                  height: TILE_SIZE * boardTransform.scale,
+                  left: position.x - boardTransform.originX,
+                  top: position.y - boardTransform.originY,
+                  borderColor: spot.color,
+                },
+              ]}
+            />
+          );
+        })}
+
+        {level.obstacles.map((obstacle) => {
+          const position = toBoardPixels(obstacle.position.x, obstacle.position.y, TILE_SIZE, boardTransform);
+
+          return (
+            <View
+              key={obstacle.id}
+              style={[
+                styles.obstacle,
+                {
+                  width: TILE_SIZE * boardTransform.scale,
+                  height: TILE_SIZE * boardTransform.scale,
+                  left: position.x - boardTransform.originX,
+                  top: position.y - boardTransform.originY,
+                },
+              ]}
+            />
+          );
+        })}
+
+        {cars.map((car) => (
+          <CarPiece
+            key={car.id}
+            car={car}
+            tileSize={TILE_SIZE}
+            boardTransform={{ ...boardTransform, originX: 0, originY: 0 }}
+            isSelected={selectedCarId === car.id}
+            onPress={() => {
+              if (isInteractionDisabled) {
+                return;
+              }
+
+              tryMoveCarToOwnSpot(car.id);
+            }}
           />
-        );
-      })}
-
-      {level.parkingSpots.map((spot) => {
-        const position = toBoardPixels(spot.position.x, spot.position.y, TILE_SIZE, BOARD_TRANSFORM);
-
-        return (
-          <View
-            key={spot.id}
-            style={[
-              styles.parkingSpot,
-              {
-                width: TILE_SIZE * BOARD_TRANSFORM.scale,
-                height: TILE_SIZE * BOARD_TRANSFORM.scale,
-                left: position.x,
-                top: position.y,
-                borderColor: spot.color,
-              },
-            ]}
-          />
-        );
-      })}
-
-      {level.obstacles.map((obstacle) => {
-        const position = toBoardPixels(obstacle.position.x, obstacle.position.y, TILE_SIZE, BOARD_TRANSFORM);
-
-        return (
-          <View
-            key={obstacle.id}
-            style={[
-              styles.obstacle,
-              {
-                width: TILE_SIZE * BOARD_TRANSFORM.scale,
-                height: TILE_SIZE * BOARD_TRANSFORM.scale,
-                left: position.x,
-                top: position.y,
-              },
-            ]}
-          />
-        );
-      })}
-
-      {cars.map((car) => (
-        <CarPiece
-          key={car.id}
-          car={car}
-          tileSize={TILE_SIZE}
-          boardTransform={BOARD_TRANSFORM}
-          isSelected={selectedCarId === car.id}
-          onPress={() => {
-            if (isInteractionDisabled) {
-              return;
-            }
-
-            tryMoveCarToOwnSpot(car.id);
-          }}
-        />
-      ))}
+        ))}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  viewport: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   board: {
     position: 'relative',
     borderRadius: 16,
