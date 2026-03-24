@@ -2,7 +2,6 @@ import { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
-  getBoardPixelSize,
   getLevelBounds,
   getResponsiveBoardTransform,
   toBoardPixels,
@@ -39,9 +38,6 @@ export function GameBoard({ viewportWidth, viewportHeight }: GameBoardProps) {
     [viewportHeight, viewportWidth, levelBounds],
   );
 
-  const boardWidth = getBoardPixelSize(levelBounds.width, TILE_SIZE, boardTransform);
-  const boardHeight = getBoardPixelSize(levelBounds.height, TILE_SIZE, boardTransform);
-
   useEffect(() => {
     if (!movingCarId) {
       return;
@@ -69,8 +65,8 @@ export function GameBoard({ viewportWidth, viewportHeight }: GameBoardProps) {
         style={[
           styles.board,
           {
-            width: boardWidth,
-            height: boardHeight,
+            width: viewportWidth,
+            height: viewportHeight,
           },
         ]}>
         {Array.from({ length: levelBounds.width * levelBounds.height }).map((_, index) => {
@@ -85,8 +81,8 @@ export function GameBoard({ viewportWidth, viewportHeight }: GameBoardProps) {
               style={[
                 styles.cell,
                 {
-                  left: cellPosition.x - boardTransform.originX,
-                  top: cellPosition.y - boardTransform.originY,
+                  left: cellPosition.x,
+                  top: cellPosition.y,
                   width: TILE_SIZE * boardTransform.scale,
                   height: TILE_SIZE * boardTransform.scale,
                   backgroundColor: isDark ? '#1f2937' : '#111827',
@@ -107,8 +103,8 @@ export function GameBoard({ viewportWidth, viewportHeight }: GameBoardProps) {
                 {
                   width: TILE_SIZE * boardTransform.scale,
                   height: TILE_SIZE * boardTransform.scale,
-                  left: position.x - boardTransform.originX,
-                  top: position.y - boardTransform.originY,
+                  left: position.x,
+                  top: position.y,
                   borderColor: spot.color,
                 },
               ]}
@@ -127,8 +123,8 @@ export function GameBoard({ viewportWidth, viewportHeight }: GameBoardProps) {
                 {
                   width: TILE_SIZE * boardTransform.scale,
                   height: TILE_SIZE * boardTransform.scale,
-                  left: position.x - boardTransform.originX,
-                  top: position.y - boardTransform.originY,
+                  left: position.x,
+                  top: position.y,
                 },
               ]}
             />
@@ -140,7 +136,7 @@ export function GameBoard({ viewportWidth, viewportHeight }: GameBoardProps) {
             key={car.id}
             car={car}
             tileSize={TILE_SIZE}
-            boardTransform={{ ...boardTransform, originX: 0, originY: 0 }}
+            boardTransform={boardTransform}
             isSelected={selectedCarId === car.id}
             onPress={() => {
               if (isInteractionDisabled) {

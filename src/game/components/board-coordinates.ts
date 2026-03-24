@@ -61,35 +61,54 @@ export function getResponsiveBoardTransform({
   viewportHeight,
   levelBounds,
   tileSize,
-  padding = 8,
-  minScale = 0.45,
-  maxScale = 1.3,
+  padding = 0,
 }: {
   viewportWidth: number;
   viewportHeight: number;
   levelBounds: LevelBounds;
   tileSize: number;
   padding?: number;
-  minScale?: number;
-  maxScale?: number;
 }): BoardTransform {
-  const safeWidth = Math.max(1, viewportWidth - padding * 2);
-  const safeHeight = Math.max(1, viewportHeight - padding * 2);
-  const rawWidth = Math.max(1, levelBounds.width * tileSize);
-  const rawHeight = Math.max(1, levelBounds.height * tileSize);
-
-  const computedScale = Math.min(safeWidth / rawWidth, safeHeight / rawHeight);
-  const scale = Math.max(minScale, Math.min(maxScale, computedScale));
-
-  const scaledWidth = levelBounds.width * tileSize * scale;
-  const scaledHeight = levelBounds.height * tileSize * scale;
+  const scale = getBoardScale(viewportWidth, viewportHeight, levelBounds, tileSize, padding);
+  const { originX, originY } = getBoardOffset(viewportWidth, viewportHeight, levelBounds, tileSize, scale);
 
   return {
-    originX: (viewportWidth - scaledWidth) / 2,
-    originY: (viewportHeight - scaledHeight) / 2,
+    originX,
+    originY,
     scale,
     offsetX: levelBounds.minX,
     offsetY: levelBounds.minY,
+  };
+}
+
+export function getBoardScale(
+  screenWidth: number,
+  screenHeight: number,
+  bounds: LevelBounds,
+  tileSize: number,
+  padding = 0,
+) {
+  const safeWidth = Math.max(1, screenWidth - padding * 2);
+  const safeHeight = Math.max(1, screenHeight - padding * 2);
+  const boardWidth = Math.max(1, bounds.width * tileSize);
+  const boardHeight = Math.max(1, bounds.height * tileSize);
+
+  return Math.min(safeWidth / boardWidth, safeHeight / boardHeight);
+}
+
+export function getBoardOffset(
+  screenWidth: number,
+  screenHeight: number,
+  bounds: LevelBounds,
+  tileSize: number,
+  scale: number,
+) {
+  const scaledWidth = bounds.width * tileSize * scale;
+  const scaledHeight = bounds.height * tileSize * scale;
+
+  return {
+    originX: (screenWidth - scaledWidth) / 2,
+    originY: (screenHeight - scaledHeight) / 2,
   };
 }
 
