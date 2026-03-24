@@ -123,6 +123,90 @@ const findPath = ({
   return undefined;
 };
 
+const canCarReachAnyMatchingSpot = ({
+  car,
+  cars,
+  level,
+  parkedCarIds,
+}: {
+  car: Car;
+  cars: Car[];
+  level: LevelDefinition;
+  parkedCarIds: string[];
+}) => {
+  const matchingSpots = level.parkingSpots.filter((spot) => {
+    const matchesColor = spot.color.toLowerCase() === car.color.toLowerCase();
+    const matchesCarId = !spot.acceptsCarId || spot.acceptsCarId === car.id;
+    return matchesColor && matchesCarId;
+  });
+
+  if (matchingSpots.length === 0) {
+    return false;
+  }
+
+  const blockedByObstacles = new Set(level.obstacles.map((obstacle) => key(obstacle.position)));
+  const blockedByCars = cars.filter((otherCar) => otherCar.id !== car.id).map((otherCar) => key(otherCar.position));
+
+  const blocked = new Set([...blockedByObstacles, ...blockedByCars]);
+
+  return matchingSpots.some((spot) => {
+    const occupyingCar = cars.find(
+      (otherCar) => otherCar.position.x === spot.position.x && otherCar.position.y === spot.position.y,
+    );
+
+    if (occupyingCar && occupyingCar.id !== car.id) {
+      return false;
+    }
+
+    blocked.delete(key(spot.position));
+
+    const path = findPath({
+      start: car.position,
+      target: spot.position,
+      level,
+      blocked,
+    });
+
+    blocked.add(key(spot.position));
+
+    if (!path) {
+      return false;
+    }
+
+    if (path.length > 1) {
+      return true;
+    }
+
+    return parkedCarIds.includes(car.id);
+  });
+};
+
+const isDeadlocked = ({
+  cars,
+  level,
+  parkedCarIds,
+}: {
+  cars: Car[];
+  level: LevelDefinition;
+  parkedCarIds: string[];
+}) => {
+  const remainingCars = cars.filter((car) => !parkedCarIds.includes(car.id));
+
+  if (remainingCars.length === 0) {
+    return false;
+  }
+
+  return remainingCars.some(
+    (car) =>
+      !canCarReachAnyMatchingSpot({
+        car,
+        cars,
+        level,
+        parkedCarIds,
+      }),
+  );
+};
+
 export const useGameStore = create<GameStore>((set, get) => ({
   levels: LEVELS,
   currentScreen: 'home',
@@ -175,7 +259,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     if (!matchesColor || !matchesCarId) {
       set({
-        statusMessage: `${selectedCar.label} can only park in a matching ${selectedCar.color} spot.`,
+        statusMessage: 'Wrong parking spot.',
       });
       return;
     }
@@ -197,7 +281,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     if (!path || path.length < 2) {
       set({
-        statusMessage: 'No clear route to that parking spot.',
+        statusMessage: 'No path available.',
       });
       return;
     }
@@ -268,15 +352,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
       : state.parkedCarIds;
 
     const hasWon = parkedCarIds.length === movedCars.length;
+    const hasDeadlock = !hasWon
+      ? isDeadlocked({
+          cars: movedCars,
+          level: state.level,
+          parkedCarIds,
+        })
+      : false;
 
     set({
       cars: movedCars,
       movingCarId: undefined,
       movingPath: [],
       parkedCarIds,
-      status: hasWon ? 'won' : state.status,
-      statusMessage: hasWon ? 'Tüm arabalar doğru yerlere park edildi!' : state.statusMessage,
-      selectedCarId: hasWon ? undefined : state.selectedCarId,
+      status: hasWon ? 'won' : hasDeadlock ? 'failed' : state.status,
+      statusMessage: hasWon
+        ? 'Tüm arabalar doğru yerlere park edildi!'
+        : hasDeadlock
+        ? 'No valid solution remains. You lost this level.'
+        : state.statusMessage,
+      selectedCarId: hasWon || hasDeadlock ? undefined : state.selectedCarId,
     });
   },
 }));
