@@ -14,7 +14,7 @@ export function LevelCard({ levelNumber, isLocked, isCompleted, isCurrent, onPre
       style={[styles.card, isLocked && styles.lockedCard, isCurrent && styles.currentCard]}
       disabled={isLocked}
       onPress={onPress}>
-      <Text style={[styles.levelText, isLocked && styles.lockedText]}>Level {levelNumber}</Text>
+      <Text style={[styles.levelText, isLocked && styles.lockedText]}>{levelNumber}</Text>
       <View style={styles.metaWrap}>
         {isLocked ? <Text style={styles.lockText}>🔒</Text> : <Text style={styles.lockText}>🔓</Text>}
         {isCompleted ? <Text style={styles.doneText}>✓</Text> : null}
@@ -25,16 +25,16 @@ export function LevelCard({ levelNumber, isLocked, isCompleted, isCurrent, onPre
 
 const styles = StyleSheet.create({
   card: {
-    width: '31%',
-    minWidth: 96,
+    width: '18%',
+    minWidth: 58,
     aspectRatio: 1,
-    borderRadius: 12,
-    borderWidth: 2,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: '#3b82f6',
     backgroundColor: '#0f172a',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
   },
   lockedCard: {
     borderColor: '#475569',
@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   },
   levelText: {
     color: '#e2e8f0',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '800',
   },
   lockedText: {
@@ -59,11 +59,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   lockText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#cbd5e1',
   },
   doneText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#4ade80',
     fontWeight: '900',
   },

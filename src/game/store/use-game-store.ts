@@ -27,6 +27,9 @@ type GameStore = {
   clearStatusMessage: () => void;
   advanceMovingCar: () => void;
   goToNextLevel: () => void;
+  isLevelUnlocked: (levelId: string) => boolean;
+  unlockNextLevel: (currentLevelId: string) => void;
+  getCompletedLevels: () => string[];
 };
 
 const cloneCars = (cars: Car[]) => cars.map((car) => ({ ...car, position: { ...car.position } }));
@@ -218,12 +221,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
   ...setupLevelState(LEVELS[0]),
   openHome: () => set({ currentScreen: 'home', statusMessage: '' }),
   openLevelSelect: () => set({ currentScreen: 'levels', statusMessage: '' }),
+  isLevelUnlocked: (levelId) => {
+    const state = get();
+    const levelIndex = state.levels.findIndex((item) => item.id === levelId);
+    if (levelIndex < 0) {
+      return false;
+    }
+
+    return levelIndex <= state.highestUnlockedLevelIndex || state.completedLevelIds.includes(levelId);
+  },
+  unlockNextLevel: (currentLevelId) => {
+    const state = get();
+    const currentLevelIndex = state.levels.findIndex((level) => level.id === currentLevelId);
+
+    if (currentLevelIndex < 0) {
+      return;
+    }
+
+    const unlockedIndex = Math.max(
+      state.highestUnlockedLevelIndex,
+      Math.min(currentLevelIndex + 1, state.levels.length - 1),
+    );
+
+    set({ highestUnlockedLevelIndex: unlockedIndex });
+  },
+  getCompletedLevels: () => [...get().completedLevelIds],
   startLevel: (levelId) => {
     const level = getLevelById(levelId);
-    const levelIndex = LEVELS.findIndex((item) => item.id === level.id);
-    const { highestUnlockedLevelIndex } = get();
+    const { isLevelUnlocked } = get();
 
-    if (levelIndex > highestUnlockedLevelIndex) {
+    if (!isLevelUnlocked(level.id)) {
       return;
     }
 
