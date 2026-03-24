@@ -1,10 +1,15 @@
 import { create } from 'zustand';
 
-import { LEVEL_001 } from '@/src/game/data/level-001';
+import { LEVELS } from '@/src/game/data/levels';
 import { resolveCarMove } from '@/src/game/engine/movement';
 import type { Car, GameStatus, LevelDefinition, MoveResolution, Position } from '@/src/game/types';
 
+type AppScreen = 'home' | 'game';
+
 type GameStore = {
+  levels: LevelDefinition[];
+  currentScreen: AppScreen;
+  selectedLevelId: string;
   level: LevelDefinition;
   cars: Car[];
   exitedCarIds: string[];
@@ -13,6 +18,9 @@ type GameStore = {
   selectedCarId?: string;
   movingCarId?: string;
   pendingMove?: MoveResolution;
+  openHome: () => void;
+  startLevel: (levelId: string) => void;
+  playSelectedLevel: () => void;
   restartLevel: () => void;
   tapCar: (carId: string) => void;
   completeMove: () => void;
@@ -22,27 +30,46 @@ const cloneCars = (cars: Car[]) => cars.map((car) => ({ ...car, position: { ...c
 
 const toObstaclePositions = (level: LevelDefinition): Position[] => level.obstacles.map((obs) => obs.position);
 
-const computeWinState = (cars: Car[], exitedCarIds: string[]) => {
-  const requiredIds = cars.filter((car) => car.requiredToExit).map((car) => car.id);
+const computeWinState = (level: LevelDefinition, exitedCarIds: string[]) => {
+  const requiredIds = level.cars.filter((car) => car.requiredToExit).map((car) => car.id);
   return requiredIds.every((id) => exitedCarIds.includes(id));
 };
 
-export const useGameStore = create<GameStore>((set, get) => ({
-  level: LEVEL_001,
-  cars: cloneCars(LEVEL_001.cars),
+const getLevelById = (levelId: string) => LEVELS.find((level) => level.id === levelId) ?? LEVELS[0];
+
+const setupLevelState = (level: LevelDefinition) => ({
+  level,
+  cars: cloneCars(level.cars),
   exitedCarIds: [],
-  status: 'playing',
+  status: 'playing' as GameStatus,
   statusMessage: '',
-  restartLevel: () => {
+  selectedCarId: undefined,
+  movingCarId: undefined,
+  pendingMove: undefined,
+});
+
+export const useGameStore = create<GameStore>((set, get) => ({
+  levels: LEVELS,
+  currentScreen: 'home',
+  selectedLevelId: LEVELS[0].id,
+  ...setupLevelState(LEVELS[0]),
+  openHome: () => set({ currentScreen: 'home' }),
+  startLevel: (levelId) => {
+    const level = getLevelById(levelId);
+
     set({
-      cars: cloneCars(LEVEL_001.cars),
-      exitedCarIds: [],
-      status: 'playing',
-      statusMessage: '',
-      selectedCarId: undefined,
-      movingCarId: undefined,
-      pendingMove: undefined,
+      currentScreen: 'game',
+      selectedLevelId: level.id,
+      ...setupLevelState(level),
     });
+  },
+  playSelectedLevel: () => {
+    const state = get();
+    state.startLevel(state.selectedLevelId);
+  },
+  restartLevel: () => {
+    const { level } = get();
+    set(setupLevelState(level));
   },
   tapCar: (carId) => {
     const state = get();
@@ -104,7 +131,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    if (computeWinState(LEVEL_001.cars, exitedCarIds)) {
+    if (computeWinState(state.level, exitedCarIds)) {
       set({
         cars: movedCars,
         exitedCarIds,
