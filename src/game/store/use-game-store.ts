@@ -1,14 +1,16 @@
 import { create } from 'zustand';
 
 import { LEVELS } from '@/src/game/data/levels';
-import type { Car, GameStatus, LevelDefinition, Position } from '@/src/game/types';
+import type { Car, GameStatus, LevelDefinition, ParkingSpot, Position } from '@/src/game/types';
 
-type AppScreen = 'home' | 'game';
+type AppScreen = 'home' | 'levels' | 'game';
 
 type GameStore = {
   levels: LevelDefinition[];
   currentScreen: AppScreen;
   selectedLevelId: string;
+  highestUnlockedLevelIndex: number;
+  completedLevelIds: string[];
   level: LevelDefinition;
   cars: Car[];
   status: GameStatus;
@@ -18,11 +20,10 @@ type GameStore = {
   movingPath: Position[];
   parkedCarIds: string[];
   openHome: () => void;
+  openLevelSelect: () => void;
   startLevel: (levelId: string) => void;
-  playSelectedLevel: () => void;
   restartLevel: () => void;
-  selectCar: (carId: string) => void;
-  sendSelectedCarToSpot: (spotId: string) => void;
+  tryMoveCarToOwnSpot: (carId: string) => void;
   clearStatusMessage: () => void;
   advanceMovingCar: () => void;
   goToNextLevel: () => void;
@@ -123,6 +124,14 @@ const findPath = ({
   return undefined;
 };
 
+const getMatchingParkingSpot = (level: LevelDefinition, car: Car): ParkingSpot | undefined => {
+  return level.parkingSpots.find((spot) => {
+    const matchesColor = spot.color.toLowerCase() === car.color.toLowerCase();
+    const matchesCarId = !spot.acceptsCarId || spot.acceptsCarId === car.id;
+    return matchesColor && matchesCarId;
+  });
+};
+
 const canCarReachAnyMatchingSpot = ({
   car,
   cars,
@@ -134,13 +143,9 @@ const canCarReachAnyMatchingSpot = ({
   level: LevelDefinition;
   parkedCarIds: string[];
 }) => {
-  const matchingSpots = level.parkingSpots.filter((spot) => {
-    const matchesColor = spot.color.toLowerCase() === car.color.toLowerCase();
-    const matchesCarId = !spot.acceptsCarId || spot.acceptsCarId === car.id;
-    return matchesColor && matchesCarId;
-  });
+  const matchingSpot = getMatchingParkingSpot(level, car);
 
-  if (matchingSpots.length === 0) {
+  if (!matchingSpot) {
     return false;
   }
 
@@ -149,36 +154,33 @@ const canCarReachAnyMatchingSpot = ({
 
   const blocked = new Set([...blockedByObstacles, ...blockedByCars]);
 
-  return matchingSpots.some((spot) => {
-    const occupyingCar = cars.find(
-      (otherCar) => otherCar.position.x === spot.position.x && otherCar.position.y === spot.position.y,
-    );
+  const occupyingCar = cars.find(
+    (otherCar) =>
+      otherCar.position.x === matchingSpot.position.x && otherCar.position.y === matchingSpot.position.y,
+  );
 
-    if (occupyingCar && occupyingCar.id !== car.id) {
-      return false;
-    }
+  if (occupyingCar && occupyingCar.id !== car.id) {
+    return false;
+  }
 
-    blocked.delete(key(spot.position));
+  blocked.delete(key(matchingSpot.position));
 
-    const path = findPath({
-      start: car.position,
-      target: spot.position,
-      level,
-      blocked,
-    });
-
-    blocked.add(key(spot.position));
-
-    if (!path) {
-      return false;
-    }
-
-    if (path.length > 1) {
-      return true;
-    }
-
-    return parkedCarIds.includes(car.id);
+  const path = findPath({
+    start: car.position,
+    target: matchingSpot.position,
+    level,
+    blocked,
   });
+
+  if (!path) {
+    return false;
+  }
+
+  if (path.length > 1) {
+    return true;
+  }
+
+  return parkedCarIds.includes(car.id);
 };
 
 const isDeadlocked = ({
@@ -211,10 +213,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   levels: LEVELS,
   currentScreen: 'home',
   selectedLevelId: LEVELS[0].id,
+  highestUnlockedLevelIndex: 0,
+  completedLevelIds: [],
   ...setupLevelState(LEVELS[0]),
-  openHome: () => set({ currentScreen: 'home' }),
+  openHome: () => set({ currentScreen: 'home', statusMessage: '' }),
+  openLevelSelect: () => set({ currentScreen: 'levels', statusMessage: '' }),
   startLevel: (levelId) => {
     const level = getLevelById(levelId);
+    const levelIndex = LEVELS.findIndex((item) => item.id === level.id);
+    const { highestUnlockedLevelIndex } = get();
+
+    if (levelIndex > highestUnlockedLevelIndex) {
+      return;
+    }
 
     set({
       currentScreen: 'game',
@@ -222,52 +233,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ...setupLevelState(level),
     });
   },
-  playSelectedLevel: () => {
-    const state = get();
-    state.startLevel(state.selectedLevelId);
-  },
   restartLevel: () => {
     const { level } = get();
     set(setupLevelState(level));
   },
-  selectCar: (carId) => {
+  tryMoveCarToOwnSpot: (carId) => {
     const state = get();
     if (state.status !== 'playing' || state.movingCarId || state.parkedCarIds.includes(carId)) {
       return;
     }
 
-    set({
-      selectedCarId: carId,
-      statusMessage: '',
-    });
-  },
-  sendSelectedCarToSpot: (spotId) => {
-    const state = get();
-    if (state.status !== 'playing' || state.movingCarId || !state.selectedCarId) {
+    const selectedCar = state.cars.find((car) => car.id === carId);
+    if (!selectedCar) {
       return;
     }
 
-    const selectedCar = state.cars.find((car) => car.id === state.selectedCarId);
-    const targetSpot = state.level.parkingSpots.find((spot) => spot.id === spotId);
-
-    if (!selectedCar || !targetSpot || state.parkedCarIds.includes(selectedCar.id)) {
-      return;
-    }
-
-    const matchesColor = targetSpot.color.toLowerCase() === selectedCar.color.toLowerCase();
-    const matchesCarId = !targetSpot.acceptsCarId || targetSpot.acceptsCarId === selectedCar.id;
-
-    if (!matchesColor || !matchesCarId) {
+    const targetSpot = getMatchingParkingSpot(state.level, selectedCar);
+    if (!targetSpot) {
       set({
-        statusMessage: 'Wrong parking spot.',
+        selectedCarId: carId,
+        statusMessage: 'No matching spot.',
       });
       return;
     }
 
     const blockedByObstacles = new Set(state.level.obstacles.map((obstacle) => key(obstacle.position)));
-    const blockedByCars = state.cars
-      .filter((car) => car.id !== selectedCar.id)
-      .map((car) => key(car.position));
+    const blockedByCars = state.cars.filter((car) => car.id !== selectedCar.id).map((car) => key(car.position));
 
     const blocked = new Set([...blockedByObstacles, ...blockedByCars]);
     blocked.delete(key(targetSpot.position));
@@ -281,12 +272,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     if (!path || path.length < 2) {
       set({
-        statusMessage: 'No path available.',
+        selectedCarId: carId,
+        statusMessage: 'No path',
       });
       return;
     }
 
     set({
+      selectedCarId: carId,
       movingCarId: selectedCar.id,
       movingPath: path.slice(1),
       statusMessage: '',
@@ -299,7 +292,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const nextLevel = state.levels[currentLevelIndex + 1];
 
     if (!nextLevel) {
-      set({ currentScreen: 'home' });
+      set({ currentScreen: 'levels' });
       return;
     }
 
@@ -360,11 +353,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
         })
       : false;
 
+    const currentLevelIndex = state.levels.findIndex((level) => level.id === state.level.id);
+    const unlockedIndex = hasWon
+      ? Math.max(state.highestUnlockedLevelIndex, Math.min(currentLevelIndex + 1, state.levels.length - 1))
+      : state.highestUnlockedLevelIndex;
+
+    const completedLevelIds = hasWon
+      ? Array.from(new Set([...state.completedLevelIds, state.level.id]))
+      : state.completedLevelIds;
+
     set({
       cars: movedCars,
       movingCarId: undefined,
       movingPath: [],
       parkedCarIds,
+      highestUnlockedLevelIndex: unlockedIndex,
+      completedLevelIds,
       status: hasWon ? 'won' : hasDeadlock ? 'failed' : state.status,
       statusMessage: hasWon
         ? 'Tüm arabalar doğru yerlere park edildi!'

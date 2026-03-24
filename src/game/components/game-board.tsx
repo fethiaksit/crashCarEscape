@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { CarPiece } from '@/src/game/components/car-piece';
 import { useGameStore } from '@/src/game/store/use-game-store';
@@ -12,8 +12,7 @@ export function GameBoard() {
   const selectedCarId = useGameStore((state) => state.selectedCarId);
   const movingCarId = useGameStore((state) => state.movingCarId);
   const status = useGameStore((state) => state.status);
-  const selectCar = useGameStore((state) => state.selectCar);
-  const sendSelectedCarToSpot = useGameStore((state) => state.sendSelectedCarToSpot);
+  const tryMoveCarToOwnSpot = useGameStore((state) => state.tryMoveCarToOwnSpot);
   const advanceMovingCar = useGameStore((state) => state.advanceMovingCar);
 
   const boardWidth = level.boardSize.width * TILE_SIZE;
@@ -65,7 +64,7 @@ export function GameBoard() {
       })}
 
       {level.parkingSpots.map((spot) => (
-        <Pressable
+        <View
           key={spot.id}
           style={[
             styles.parkingSpot,
@@ -77,8 +76,6 @@ export function GameBoard() {
               borderColor: spot.color,
             },
           ]}
-          disabled={isInteractionDisabled || !selectedCarId}
-          onPress={() => sendSelectedCarToSpot(spot.id)}
         />
       ))}
 
@@ -103,7 +100,13 @@ export function GameBoard() {
           car={car}
           tileSize={TILE_SIZE}
           isSelected={selectedCarId === car.id}
-          onPress={() => selectCar(car.id)}
+          onPress={() => {
+            if (isInteractionDisabled) {
+              return;
+            }
+
+            tryMoveCarToOwnSpot(car.id);
+          }}
         />
       ))}
     </View>
