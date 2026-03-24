@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Crash Car Escape",
+    "slug": "crash-car-escape",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "jsEngine": "hermes",
+    "assetBundlePatterns": ["**/*"]
+  }
+}
