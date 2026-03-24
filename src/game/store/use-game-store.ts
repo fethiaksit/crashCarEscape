@@ -16,16 +16,13 @@ type GameStore = {
   selectedCarId?: string;
   movingCarId?: string;
   movingPath: Position[];
-  drawingPath: Position[];
   parkedCarIds: string[];
   openHome: () => void;
   startLevel: (levelId: string) => void;
   playSelectedLevel: () => void;
   restartLevel: () => void;
   selectCar: (carId: string) => void;
-  startDrawingPath: (position: Position) => void;
-  extendDrawingPath: (position: Position) => void;
-  finishDrawingPath: () => void;
+  sendSelectedCarToSpot: (spotId: string) => void;
   clearStatusMessage: () => void;
   advanceMovingCar: () => void;
 };
@@ -53,14 +50,76 @@ const setupLevelState = (level: LevelDefinition) => ({
   selectedCarId: undefined,
   movingCarId: undefined,
   movingPath: [],
-  drawingPath: [],
   parkedCarIds: [],
 });
 
-const areAdjacent = (a: Position, b: Position) => {
-  const dx = Math.abs(a.x - b.x);
-  const dy = Math.abs(a.y - b.y);
-  return dx + dy === 1;
+const DIRECTIONS: Position[] = [
+  { x: 1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: -1 },
+];
+
+const findPath = ({
+  start,
+  target,
+  level,
+  blocked,
+}: {
+  start: Position;
+  target: Position;
+  level: LevelDefinition;
+  blocked: Set<string>;
+}): Position[] | undefined => {
+  if (start.x === target.x && start.y === target.y) {
+    return [start];
+  }
+
+  const queue: Position[] = [{ ...start }];
+  const visited = new Set<string>([key(start)]);
+  const cameFrom = new Map<string, Position>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) {
+      break;
+    }
+
+    for (const direction of DIRECTIONS) {
+      const next = {
+        x: current.x + direction.x,
+        y: current.y + direction.y,
+      };
+      const nextKey = key(next);
+
+      if (!isInsideBoard(next, level) || visited.has(nextKey) || blocked.has(nextKey)) {
+        continue;
+      }
+
+      cameFrom.set(nextKey, current);
+
+      if (next.x === target.x && next.y === target.y) {
+        const path = [target];
+        let cursor: Position | undefined = current;
+
+        while (cursor) {
+          path.push(cursor);
+          if (cursor.x === start.x && cursor.y === start.y) {
+            break;
+          }
+
+          cursor = cameFrom.get(key(cursor));
+        }
+
+        return path.reverse();
+      }
+
+      visited.add(nextKey);
+      queue.push(next);
+    }
+  }
+
+  return undefined;
 };
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -88,122 +147,63 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   selectCar: (carId) => {
     const state = get();
-    if (state.status !== 'playing' || state.movingCarId) {
+    if (state.status !== 'playing' || state.movingCarId || state.parkedCarIds.includes(carId)) {
       return;
     }
 
     set({
       selectedCarId: carId,
-      drawingPath: [],
       statusMessage: '',
     });
   },
-  startDrawingPath: (position) => {
+  sendSelectedCarToSpot: (spotId) => {
     const state = get();
     if (state.status !== 'playing' || state.movingCarId || !state.selectedCarId) {
       return;
     }
 
     const selectedCar = state.cars.find((car) => car.id === state.selectedCarId);
-    if (!selectedCar || state.parkedCarIds.includes(selectedCar.id)) {
+    const targetSpot = state.level.parkingSpots.find((spot) => spot.id === spotId);
+
+    if (!selectedCar || !targetSpot || state.parkedCarIds.includes(selectedCar.id)) {
       return;
     }
 
-    if (!isInsideBoard(position, state.level)) {
-      return;
-    }
-
-    const start = selectedCar.position;
-
-    if (position.x !== start.x || position.y !== start.y) {
-      return;
-    }
-
-    set({ drawingPath: [{ ...start }] });
-  },
-  extendDrawingPath: (position) => {
-    const state = get();
-    if (state.status !== 'playing' || state.movingCarId || !state.selectedCarId || !state.drawingPath.length) {
-      return;
-    }
-
-    if (!isInsideBoard(position, state.level)) {
-      return;
-    }
-
-    const last = state.drawingPath[state.drawingPath.length - 1];
-    if (last.x === position.x && last.y === position.y) {
-      return;
-    }
-
-    if (!areAdjacent(last, position)) {
-      return;
-    }
-
-    const selectedCar = state.cars.find((car) => car.id === state.selectedCarId);
-    if (!selectedCar) {
-      return;
-    }
-
-    const occupiedByObstacles = new Set(state.level.obstacles.map((obstacle) => key(obstacle.position)));
-    const occupiedByOtherCars = new Set(
-      state.cars.filter((car) => car.id !== selectedCar.id).map((car) => key(car.position)),
-    );
-
-    if (occupiedByObstacles.has(key(position)) || occupiedByOtherCars.has(key(position))) {
-      return;
-    }
-
-    const alreadyInPath = state.drawingPath.some((point) => point.x === position.x && point.y === position.y);
-    if (alreadyInPath) {
-      return;
-    }
-
-    set({ drawingPath: [...state.drawingPath, position] });
-  },
-  finishDrawingPath: () => {
-    const state = get();
-    if (state.status !== 'playing' || state.movingCarId || !state.selectedCarId) {
-      return;
-    }
-
-    const selectedCar = state.cars.find((car) => car.id === state.selectedCarId);
-    if (!selectedCar || state.parkedCarIds.includes(selectedCar.id)) {
-      set({ drawingPath: [] });
-      return;
-    }
-
-    if (state.drawingPath.length < 2) {
-      set({ drawingPath: [], statusMessage: 'Draw a route from the selected car.' });
-      return;
-    }
-
-    const destination = state.drawingPath[state.drawingPath.length - 1];
-    const destinationSpot = state.level.parkingSpots.find(
-      (spot) => spot.position.x === destination.x && spot.position.y === destination.y,
-    );
-
-    if (!destinationSpot) {
-      set({ drawingPath: [], statusMessage: 'Path must end on a parking spot.' });
-      return;
-    }
-
-    const matchesColor = destinationSpot.color.toLowerCase() === selectedCar.color.toLowerCase();
-    const matchesCarId = !destinationSpot.acceptsCarId || destinationSpot.acceptsCarId === selectedCar.id;
+    const matchesColor = targetSpot.color.toLowerCase() === selectedCar.color.toLowerCase();
+    const matchesCarId = !targetSpot.acceptsCarId || targetSpot.acceptsCarId === selectedCar.id;
 
     if (!matchesColor || !matchesCarId) {
       set({
-        status: 'failed',
-        statusMessage: `${selectedCar.label} reached the wrong parking spot.`,
-        drawingPath: [],
+        statusMessage: `${selectedCar.label} can only park in a matching ${selectedCar.color} spot.`,
+      });
+      return;
+    }
+
+    const blockedByObstacles = new Set(state.level.obstacles.map((obstacle) => key(obstacle.position)));
+    const blockedByCars = state.cars
+      .filter((car) => car.id !== selectedCar.id)
+      .map((car) => key(car.position));
+
+    const blocked = new Set([...blockedByObstacles, ...blockedByCars]);
+    blocked.delete(key(targetSpot.position));
+
+    const path = findPath({
+      start: selectedCar.position,
+      target: targetSpot.position,
+      level: state.level,
+      blocked,
+    });
+
+    if (!path || path.length < 2) {
+      set({
+        statusMessage: 'No clear route to that parking spot.',
       });
       return;
     }
 
     set({
       movingCarId: selectedCar.id,
-      movingPath: state.drawingPath.slice(1),
-      drawingPath: [],
+      movingPath: path.slice(1),
       statusMessage: '',
     });
   },
@@ -245,7 +245,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       (spot) => spot.position.x === movingCar.position.x && spot.position.y === movingCar.position.y,
     );
 
-    const parkedCarIds = parkedSpot
+    const colorMatchesSpot =
+      parkedSpot &&
+      parkedSpot.color.toLowerCase() === movingCar.color.toLowerCase() &&
+      (!parkedSpot.acceptsCarId || parkedSpot.acceptsCarId === movingCar.id);
+
+    const parkedCarIds = colorMatchesSpot
       ? Array.from(new Set([...state.parkedCarIds, movingCar.id]))
       : state.parkedCarIds;
 
@@ -258,6 +263,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       parkedCarIds,
       status: hasWon ? 'won' : state.status,
       statusMessage: hasWon ? 'All cars parked in matching spots!' : state.statusMessage,
+      selectedCarId: hasWon ? undefined : state.selectedCarId,
     });
   },
 }));

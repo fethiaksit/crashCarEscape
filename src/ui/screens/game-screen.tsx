@@ -23,7 +23,7 @@ export function GameScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>Crash Car Escape</Text>
         <Text style={styles.levelLabel}>{level.name}</Text>
-        <Text style={styles.hint}>Select a car, draw a path, then release to park.</Text>
+        <Text style={styles.hint}>Tap a car, then tap a matching parking spot to auto-drive there.</Text>
 
         <View style={styles.boardWrap}>
           <GameBoard />
