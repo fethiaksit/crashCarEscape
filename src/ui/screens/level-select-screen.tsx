@@ -9,6 +9,7 @@ export function LevelSelectScreen() {
   const selectedLevelId = useGameStore((state) => state.selectedLevelId);
   const highestUnlockedLevelIndex = useGameStore((state) => state.highestUnlockedLevelIndex);
   const completedLevelIds = useGameStore((state) => state.completedLevelIds);
+  const isLevelUnlocked = useGameStore((state) => state.isLevelUnlocked);
   const startLevel = useGameStore((state) => state.startLevel);
   const openHome = useGameStore((state) => state.openHome);
 
@@ -29,7 +30,7 @@ export function LevelSelectScreen() {
 
         <LevelGrid
           levels={levels}
-          highestUnlockedLevelIndex={highestUnlockedLevelIndex}
+          isLevelUnlocked={isLevelUnlocked}
           selectedLevelId={selectedLevelId}
           completedLevelIds={completedLevelIds}
           onSelectLevel={startLevel}
