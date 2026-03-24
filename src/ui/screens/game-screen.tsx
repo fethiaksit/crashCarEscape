@@ -125,16 +125,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     position: 'relative',
+    paddingHorizontal: 12,
+    paddingBottom: 12,
   },
   boardArea: {
     flex: 1,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
   boardWrap: {
     position: 'relative',
     width: '100%',
+    maxWidth: 560,
     height: '100%',
+    maxHeight: 980,
+    borderRadius: 14,
+    overflow: 'hidden',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -175,8 +182,8 @@ const styles = StyleSheet.create({
   },
   pauseButton: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 10,
+    right: 22,
     width: 44,
     height: 44,
     borderRadius: 22,
