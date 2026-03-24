@@ -7,7 +7,7 @@ import { useGameStore } from '@/src/game/store/use-game-store';
 
 const STATUS_TEXT: Record<string, string> = {
   won: 'Kazandın',
-  failed: 'You lost',
+  failed: 'Kaybettin',
 };
 
 export function GameScreen() {
@@ -16,6 +16,7 @@ export function GameScreen() {
   const status = useGameStore((state) => state.status);
   const statusMessage = useGameStore((state) => state.statusMessage);
   const goToNextLevel = useGameStore((state) => state.goToNextLevel);
+  const restartLevel = useGameStore((state) => state.restartLevel);
   const openHome = useGameStore((state) => state.openHome);
   const openLevelSelect = useGameStore((state) => state.openLevelSelect);
   const isLastLevel = levels[levels.length - 1]?.id === level.id;
@@ -63,6 +64,16 @@ export function GameScreen() {
                   <Text style={styles.overlayMessage}>
                     {isLastLevel ? 'Tüm bölümler tamamlandı! Bölüm seçimine dönülüyor...' : 'Sıradaki bölüm yükleniyor...'}
                   </Text>
+                )}
+                {status === 'failed' && (
+                  <View style={styles.failActions}>
+                    <Pressable style={styles.failActionButton} onPress={restartLevel}>
+                      <Text style={styles.failActionButtonText}>Tekrar Dene</Text>
+                    </Pressable>
+                    <Pressable style={styles.failActionButton} onPress={openHome}>
+                      <Text style={styles.failActionButtonText}>Ana Sayfa</Text>
+                    </Pressable>
+                  </View>
                 )}
               </View>
             )}
@@ -141,6 +152,25 @@ const styles = StyleSheet.create({
   overlayMessage: {
     color: '#e2e8f0',
     fontSize: 14,
+    textAlign: 'center',
+  },
+  failActions: {
+    marginTop: 10,
+    width: '100%',
+    maxWidth: 280,
+    gap: 10,
+  },
+  failActionButton: {
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  failActionButtonText: {
+    color: '#f8fafc',
+    fontWeight: '800',
     textAlign: 'center',
   },
   pauseButton: {
