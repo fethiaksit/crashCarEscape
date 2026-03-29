@@ -4,11 +4,14 @@ const COLOR_POOL = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#a855f7', '#f97
 const LABEL_POOL = ['R', 'G', 'B', 'Y', 'P', 'O', 'C'];
 
 type LayoutFamily =
-  | 'single-choke'
-  | 'double-choke'
-  | 'side-pocket'
-  | 'cross-road'
-  | 'zigzag';
+  | 'narrow-corridor'
+  | 'central-choke'
+  | 'zigzag'
+  | 'split-region'
+  | 'crossroad'
+  | 'dead-end-trap'
+  | 'loop'
+  | 'asymmetrical';
 
 const keyOf = ({ x, y }: Position) => `${x},${y}`;
 
@@ -35,11 +38,11 @@ const shuffle = <T>(items: T[], rng: () => number) => {
 };
 
 const getCarCountForLevel = (levelNumber: number) => {
-  if (levelNumber <= 8) return 2;
-  if (levelNumber <= 18) return 3;
-  if (levelNumber <= 35) return 4;
-  if (levelNumber <= 58) return 5;
-  if (levelNumber <= 82) return 6;
+  if (levelNumber <= 5) return 2;
+  if (levelNumber <= 10) return 3;
+  if (levelNumber <= 20) return 4;
+  if (levelNumber <= 40) return 5;
+  if (levelNumber <= 70) return 6;
   return 7;
 };
 
@@ -52,35 +55,38 @@ const getBoardSize = (levelNumber: number, carCount: number) => {
 };
 
 const getDifficultyLabel = (levelNumber: number) => {
-  if (levelNumber <= 8) return 'Tutorial Streets';
-  if (levelNumber <= 20) return 'Early Pressure';
-  if (levelNumber <= 40) return 'Trap District';
-  if (levelNumber <= 60) return 'Gridlock Core';
-  if (levelNumber <= 80) return 'Deadlock Sector';
+  if (levelNumber <= 5) return 'Tutorial Streets';
+  if (levelNumber <= 10) return 'Early Pressure';
+  if (levelNumber <= 20) return 'Trap District';
+  if (levelNumber <= 40) return 'Gridlock Core';
+  if (levelNumber <= 70) return 'Deadlock Sector';
   return 'No-Mistake Zone';
 };
 
-const getLayoutFamily = (levelNumber: number, rng: () => number): LayoutFamily => {
-  if (levelNumber <= 8) return 'single-choke';
-  if (levelNumber <= 20) {
-    return shuffle<LayoutFamily>(['single-choke', 'side-pocket'], rng)[0];
+const getFamilyPoolForLevel = (levelNumber: number): LayoutFamily[] => {
+  if (levelNumber <= 5) return ['narrow-corridor', 'central-choke', 'split-region'];
+  if (levelNumber <= 10) return ['central-choke', 'split-region', 'zigzag', 'crossroad'];
+  if (levelNumber <= 20) return ['split-region', 'zigzag', 'crossroad', 'dead-end-trap'];
+  if (levelNumber <= 40) return ['central-choke', 'zigzag', 'crossroad', 'dead-end-trap', 'asymmetrical'];
+  if (levelNumber <= 70) return ['zigzag', 'crossroad', 'dead-end-trap', 'loop', 'asymmetrical'];
+  return ['crossroad', 'dead-end-trap', 'loop', 'asymmetrical', 'zigzag'];
+};
+
+const getLayoutFamily = ({
+  levelNumber,
+  attempt,
+  previousFamily,
+}: {
+  levelNumber: number;
+  attempt: number;
+  previousFamily?: LayoutFamily;
+}): LayoutFamily => {
+  const pool = getFamilyPoolForLevel(levelNumber);
+  let family = pool[(levelNumber * 3 + attempt * 5) % pool.length];
+  if (previousFamily && family === previousFamily) {
+    family = pool[(pool.indexOf(family) + 1 + attempt) % pool.length];
   }
-  if (levelNumber <= 40) {
-    return shuffle<LayoutFamily>(
-      ['single-choke', 'double-choke', 'side-pocket'],
-      rng,
-    )[0];
-  }
-  if (levelNumber <= 70) {
-    return shuffle<LayoutFamily>(
-      ['double-choke', 'side-pocket', 'cross-road', 'zigzag'],
-      rng,
-    )[0];
-  }
-  return shuffle<LayoutFamily>(
-    ['double-choke', 'cross-road', 'zigzag', 'side-pocket'],
-    rng,
-  )[0];
+  return family;
 };
 
 const getWinningOrder = (
@@ -200,11 +206,11 @@ const getParkingPositions = ({
         : [midY - 1, midY, midY + 1];
 
   const familyAnchor =
-    family === 'single-choke'
+    family === 'narrow-corridor'
       ? width - 2
-      : family === 'double-choke'
+      : family === 'central-choke'
         ? width - 3
-        : family === 'cross-road'
+        : family === 'crossroad'
           ? width - 4
           : width - 3;
 
@@ -217,9 +223,11 @@ const getParkingPositions = ({
       : clamp(familyAnchor, Math.floor(width / 2), width - 2);
 
     const extraX =
-      family === 'zigzag'
-        ? [preferredX, preferredX - 2, preferredX + 1, preferredX - 1]
-        : [preferredX, preferredX - 1, preferredX + 1, preferredX - 2];
+      family === 'dead-end-trap' || family === 'loop'
+        ? [preferredX - 1, preferredX, preferredX - 2, preferredX + 1]
+        : family === 'zigzag'
+          ? [preferredX, preferredX - 2, preferredX + 1, preferredX - 1]
+          : [preferredX, preferredX - 1, preferredX + 1, preferredX - 2];
 
     const preferredRow =
       denseRows[(rank + Math.floor(rng() * denseRows.length)) % denseRows.length];
@@ -297,8 +305,8 @@ const makeOpenCells = ({
 
   const choke1 = clamp(2 + Math.floor(width * 0.3), 2, width - 5);
   const choke2 = clamp(2 + Math.floor(width * 0.6), 3, width - 3);
-
-  carveLine(open, { x: leftX, y: midY }, { x: rightX, y: midY }, width, height);
+  const upperY = clamp(midY - 2, 1, height - 2);
+  const lowerY = clamp(midY + 2, 1, height - 2);
 
   for (const row of carRows) {
     carvePath(
@@ -313,70 +321,68 @@ const makeOpenCells = ({
     );
   }
 
-  if (family === 'single-choke' || family === 'side-pocket') {
-    carveLine(
-      open,
-      { x: choke1, y: midY - 1 },
-      { x: choke1, y: midY + 1 },
-      width,
-      height,
-    );
-  }
-
-  if (family === 'double-choke' || family === 'cross-road' || family === 'zigzag') {
-    carveLine(
-      open,
-      { x: choke1, y: midY - 1 },
-      { x: choke1, y: midY + 1 },
-      width,
-      height,
-    );
-    carveLine(
-      open,
-      { x: choke2, y: midY - 1 },
-      { x: choke2, y: midY + 1 },
-      width,
-      height,
-    );
-  }
-
-  if (family === 'side-pocket') {
-    carveLine(
-      open,
-      { x: choke1 + 1, y: midY },
-      { x: choke1 + 1, y: clamp(midY - 2, 1, height - 2) },
-      width,
-      height,
-    );
-    carveLine(
-      open,
-      { x: choke1 + 2, y: clamp(midY - 2, 1, height - 2) },
-      { x: choke1 + 3, y: clamp(midY - 2, 1, height - 2) },
-      width,
-      height,
-    );
-  }
-
-  if (family === 'cross-road') {
-    const crossX = clamp(choke2 + 1, 2, width - 2);
-    carveLine(open, { x: crossX, y: 1 }, { x: crossX, y: height - 2 }, width, height);
-  }
-
-  if (family === 'zigzag') {
-    const upper = clamp(midY - 2, 1, height - 2);
-    const lower = clamp(midY + 2, 1, height - 2);
-    carvePath(
-      open,
-      [
-        { x: choke1, y: midY },
-        { x: choke1, y: upper },
-        { x: choke2 - 1, y: upper },
-        { x: choke2 - 1, y: lower },
-        { x: rightX, y: lower },
-      ],
-      width,
-      height,
-    );
+  switch (family) {
+    case 'narrow-corridor':
+      carveLine(open, { x: leftX, y: midY }, { x: rightX, y: midY }, width, height);
+      carveLine(open, { x: choke1, y: upperY }, { x: choke1, y: lowerY }, width, height);
+      break;
+    case 'central-choke':
+      carveLine(open, { x: leftX, y: midY }, { x: rightX, y: midY }, width, height);
+      carveLine(open, { x: choke1, y: upperY }, { x: choke1, y: lowerY }, width, height);
+      carveLine(open, { x: choke2, y: upperY }, { x: choke2, y: lowerY }, width, height);
+      break;
+    case 'split-region':
+      carveLine(open, { x: leftX, y: upperY }, { x: rightX, y: upperY }, width, height);
+      carveLine(open, { x: leftX, y: lowerY }, { x: rightX, y: lowerY }, width, height);
+      carveLine(open, { x: choke1, y: upperY }, { x: choke1, y: lowerY }, width, height);
+      break;
+    case 'crossroad':
+      carveLine(open, { x: leftX, y: midY }, { x: rightX, y: midY }, width, height);
+      carveLine(open, { x: choke1, y: 1 }, { x: choke1, y: height - 2 }, width, height);
+      carveLine(open, { x: choke2, y: upperY }, { x: choke2, y: lowerY }, width, height);
+      break;
+    case 'dead-end-trap':
+      carveLine(open, { x: leftX, y: midY }, { x: rightX, y: midY }, width, height);
+      carveLine(open, { x: choke1, y: midY }, { x: choke1, y: upperY }, width, height);
+      carveLine(open, { x: choke2, y: midY }, { x: choke2, y: lowerY }, width, height);
+      carveLine(open, { x: choke2 + 1, y: lowerY }, { x: rightX, y: lowerY }, width, height);
+      break;
+    case 'loop':
+      carveLine(open, { x: leftX, y: upperY }, { x: rightX, y: upperY }, width, height);
+      carveLine(open, { x: leftX, y: lowerY }, { x: rightX, y: lowerY }, width, height);
+      carveLine(open, { x: leftX, y: upperY }, { x: leftX, y: lowerY }, width, height);
+      carveLine(open, { x: rightX, y: upperY }, { x: rightX, y: lowerY }, width, height);
+      carveLine(open, { x: choke1, y: upperY }, { x: choke1, y: midY }, width, height);
+      break;
+    case 'asymmetrical':
+      carvePath(
+        open,
+        [
+          { x: leftX, y: midY },
+          { x: choke1, y: upperY },
+          { x: choke2, y: lowerY },
+          { x: rightX, y: midY },
+        ],
+        width,
+        height,
+      );
+      carveLine(open, { x: choke1 + 1, y: upperY }, { x: choke1 + 1, y: 1 }, width, height);
+      break;
+    case 'zigzag':
+      carvePath(
+        open,
+        [
+          { x: leftX, y: midY },
+          { x: choke1, y: midY },
+          { x: choke1, y: upperY },
+          { x: choke2 - 1, y: upperY },
+          { x: choke2 - 1, y: lowerY },
+          { x: rightX, y: lowerY },
+        ],
+        width,
+        height,
+      );
+      break;
   }
 
   for (let i = 0; i < parkingPositions.length; i += 1) {
@@ -396,7 +402,7 @@ const makeOpenCells = ({
       continue;
     }
 
-    if (family === 'zigzag' && levelNumber >= 45) {
+    if ((family === 'zigzag' || family === 'dead-end-trap') && levelNumber >= 35) {
       const detourY = park.y < midY ? clamp(midY - 1, 1, height - 2) : clamp(midY + 1, 1, height - 2);
       carvePath(
         open,
@@ -413,11 +419,13 @@ const makeOpenCells = ({
     }
 
     const entryX = i % 2 === 0 ? choke1 : choke2;
+    const anchorY =
+      family === 'split-region' ? (rankToBand(i, parkingPositions.length) ? upperY : lowerY) : midY;
     carvePath(
       open,
       [
-        { x: entryX, y: midY },
-        { x: park.x, y: midY },
+        { x: entryX, y: anchorY },
+        { x: park.x, y: anchorY },
         { x: park.x, y: park.y },
       ],
       width,
@@ -436,7 +444,7 @@ const makeOpenCells = ({
     );
   }
 
-  if (levelNumber >= 52) {
+  if (levelNumber >= 45) {
     const branchX = clamp(choke2 - 1, 2, width - 3);
     carveLine(
       open,
@@ -449,6 +457,9 @@ const makeOpenCells = ({
 
   return open;
 };
+
+const rankToBand = (index: number, total: number) =>
+  index < Math.ceil(total / 2);
 
 const makeObstacles = ({
   width,
@@ -598,15 +609,37 @@ const overlapsExist = (level: LevelDefinition) => {
   return false;
 };
 
+const areLevelsTooSimilar = (a: LevelDefinition, b: LevelDefinition) => {
+  if (
+    a.boardSize.width !== b.boardSize.width ||
+    a.boardSize.height !== b.boardSize.height ||
+    a.cars.length !== b.cars.length
+  ) {
+    return false;
+  }
+
+  const obstacleA = new Set(a.obstacles.map((o) => keyOf(o.position)));
+  const obstacleB = new Set(b.obstacles.map((o) => keyOf(o.position)));
+  let sameObstacleCells = 0;
+
+  for (const key of obstacleA) {
+    if (obstacleB.has(key)) sameObstacleCells += 1;
+  }
+
+  const overlapRatio = sameObstacleCells / Math.max(obstacleA.size, 1);
+  return overlapRatio >= 0.82;
+};
+
 const buildCandidateLevel = (
   levelNumber: number,
   attempt: number,
+  previousFamily?: LayoutFamily,
 ): LevelDefinition => {
   const carCount = getCarCountForLevel(levelNumber);
   const boardSize = getBoardSize(levelNumber, carCount);
   const rng = createRng(levelNumber * 997 + attempt * 131 + carCount * 17);
   const order = getWinningOrder(levelNumber, carCount, rng);
-  const family = getLayoutFamily(levelNumber, rng);
+  const family = getLayoutFamily({ levelNumber, attempt, previousFamily });
   const carRows = getStartRows(boardSize.height, carCount, rng);
   const parkingPositions = getParkingPositions({
     levelNumber,
@@ -661,7 +694,7 @@ const buildEmergencyLevel = (levelNumber: number): LevelDefinition => {
   const boardSize = getBoardSize(safeLevel, carCount);
   const rng = createRng(500000 + levelNumber * 59);
   const order = getWinningOrder(safeLevel, carCount, rng);
-  const family: LayoutFamily = levelNumber % 2 === 0 ? 'single-choke' : 'double-choke';
+  const family: LayoutFamily = levelNumber % 2 === 0 ? 'narrow-corridor' : 'central-choke';
   const carRows = getStartRows(boardSize.height, carCount, rng);
   const parkingPositions = getParkingPositions({
     levelNumber: safeLevel,
@@ -710,7 +743,11 @@ const buildEmergencyLevel = (levelNumber: number): LevelDefinition => {
   };
 };
 
-const buildLevel = (levelNumber: number): LevelDefinition => {
+const buildLevel = (
+  levelNumber: number,
+  previousFamily?: LayoutFamily,
+  previousLevel?: LevelDefinition,
+): LevelDefinition => {
   const attempts =
     levelNumber <= 20 ? 10 : levelNumber <= 60 ? 14 : 18;
 
@@ -718,12 +755,13 @@ const buildLevel = (levelNumber: number): LevelDefinition => {
     let candidate: LevelDefinition;
 
     try {
-      candidate = buildCandidateLevel(levelNumber, attempt);
+      candidate = buildCandidateLevel(levelNumber, attempt, previousFamily);
     } catch {
       continue;
     }
 
     if (overlapsExist(candidate)) continue;
+    if (previousLevel && areLevelsTooSimilar(candidate, previousLevel)) continue;
     if (isSolvable(candidate)) return candidate;
   }
 
@@ -784,5 +822,14 @@ const buildLevel = (levelNumber: number): LevelDefinition => {
 
 export const GENERATED_LEVELS: LevelDefinition[] = Array.from(
   { length: 100 },
-  (_, index) => buildLevel(index + 1),
-);
+  (_, index) => index + 1,
+).reduce<LevelDefinition[]>((levels, levelNumber) => {
+  const previousFamily =
+    levelNumber > 1
+      ? getLayoutFamily({ levelNumber: levelNumber - 1, attempt: 0 })
+      : undefined;
+  const previousLevel = levels[levels.length - 1];
+  const level = buildLevel(levelNumber, previousFamily, previousLevel);
+  levels.push(level);
+  return levels;
+}, []);
