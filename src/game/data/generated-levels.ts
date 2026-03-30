@@ -1,22 +1,28 @@
-import type { LevelDefinition, Obstacle, Position } from '@/src/game/types';
+import type { LevelDefinition, Position } from '@/src/game/types';
 
 const COLOR_POOL = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#a855f7', '#f97316', '#06b6d4'];
 const LABEL_POOL = ['R', 'G', 'B', 'Y', 'P', 'O', 'C'];
 
 type LayoutFamily =
-  | 'narrow-corridor'
-  | 'central-choke'
-  | 'zigzag'
-  | 'split-region'
-  | 'crossroad'
-  | 'dead-end-trap'
-  | 'loop'
-  | 'asymmetrical';
+  | 'single-choke'
+  | 'double-choke'
+  | 'switchback'
+  | 'fork-trap'
+  | 'ring-trap'
+  | 'snake';
 
-const keyOf = ({ x, y }: Position) => `${x},${y}`;
+type DifficultyTier = {
+  carCount: number;
+  boardSize: { width: number; height: number };
+  opennessMax: number;
+  minChokepoints: number;
+  minDeadFirstMoves: number;
+  decoyDensity: number;
+};
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value));
+const keyOf = (p: Position) => `${p.x},${p.y}`;
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const createRng = (seed: number) => {
   let t = seed >>> 0;
@@ -37,457 +43,317 @@ const shuffle = <T>(items: T[], rng: () => number) => {
   return copy;
 };
 
-const getCarCountForLevel = (levelNumber: number) => {
-  if (levelNumber <= 5) return 2;
-  if (levelNumber <= 10) return 3;
-  if (levelNumber <= 20) return 4;
-  if (levelNumber <= 40) return 5;
-  if (levelNumber <= 70) return 6;
-  return 7;
-};
-
-const getBoardSize = (levelNumber: number, carCount: number) => {
-  if (levelNumber <= 10) return { width: 8, height: 6 };
-  if (levelNumber <= 30) return { width: 9, height: 7 };
-  if (levelNumber <= 55) return { width: 10, height: 8 };
-  if (carCount <= 6) return { width: 10, height: 9 };
-  return { width: 11, height: 9 };
-};
-
-const getDifficultyLabel = (levelNumber: number) => {
-  if (levelNumber <= 5) return 'Tutorial Streets';
-  if (levelNumber <= 10) return 'Early Pressure';
-  if (levelNumber <= 20) return 'Trap District';
-  if (levelNumber <= 40) return 'Gridlock Core';
-  if (levelNumber <= 70) return 'Deadlock Sector';
-  return 'No-Mistake Zone';
-};
-
-const getFamilyPoolForLevel = (levelNumber: number): LayoutFamily[] => {
-  if (levelNumber <= 5) return ['narrow-corridor', 'central-choke', 'split-region'];
-  if (levelNumber <= 10) return ['central-choke', 'split-region', 'zigzag', 'crossroad'];
-  if (levelNumber <= 20) return ['split-region', 'zigzag', 'crossroad', 'dead-end-trap'];
-  if (levelNumber <= 40) return ['central-choke', 'zigzag', 'crossroad', 'dead-end-trap', 'asymmetrical'];
-  if (levelNumber <= 70) return ['zigzag', 'crossroad', 'dead-end-trap', 'loop', 'asymmetrical'];
-  return ['crossroad', 'dead-end-trap', 'loop', 'asymmetrical', 'zigzag'];
-};
-
-const getLayoutFamily = ({
-  levelNumber,
-  attempt,
-  previousFamily,
-}: {
-  levelNumber: number;
-  attempt: number;
-  previousFamily?: LayoutFamily;
-}): LayoutFamily => {
-  const pool = getFamilyPoolForLevel(levelNumber);
-  let family = pool[(levelNumber * 3 + attempt * 5) % pool.length];
-  if (previousFamily && family === previousFamily) {
-    family = pool[(pool.indexOf(family) + 1 + attempt) % pool.length];
-  }
-  return family;
-};
-
-const getWinningOrder = (
-  levelNumber: number,
-  carCount: number,
-  rng: () => number,
-) => {
-  const order = Array.from({ length: carCount }, (_, i) => i);
-
-  if (levelNumber <= 8) return order;
-
-  if (levelNumber <= 20) {
-    const pivot = levelNumber % carCount;
-    return order.slice(pivot).concat(order.slice(0, pivot));
+const getTier = (levelNumber: number): DifficultyTier => {
+  if (levelNumber <= 10) {
+    return {
+      carCount: levelNumber <= 4 ? 2 : 3,
+      boardSize: { width: 8, height: 6 },
+      opennessMax: 0.42,
+      minChokepoints: 7,
+      minDeadFirstMoves: levelNumber <= 6 ? 0 : 1,
+      decoyDensity: 0.08,
+    };
   }
 
-  const shuffled = shuffle(order, rng);
-
-  if (carCount >= 5) {
-    const head = shuffled.slice(0, carCount - 2);
-    const tail = shuffled.slice(carCount - 2).reverse();
-    return head.concat(tail);
+  if (levelNumber <= 30) {
+    return {
+      carCount: levelNumber <= 20 ? 4 : 5,
+      boardSize: { width: 9, height: 7 },
+      opennessMax: 0.38,
+      minChokepoints: 10,
+      minDeadFirstMoves: 1,
+      decoyDensity: 0.12,
+    };
   }
 
-  return shuffled;
+  return {
+    carCount: levelNumber <= 60 ? 6 : 7,
+    boardSize: levelNumber <= 60 ? { width: 10, height: 8 } : { width: 10, height: 9 },
+    opennessMax: 0.34,
+    minChokepoints: 14,
+    minDeadFirstMoves: 2,
+    decoyDensity: 0.16,
+  };
 };
 
-const carveLine = (
-  open: Set<string>,
-  from: Position,
-  to: Position,
-  width: number,
-  height: number,
-) => {
+const difficultyName = (levelNumber: number) => {
+  if (levelNumber <= 10) return 'Tutorial Easy';
+  if (levelNumber <= 30) return 'Thoughtful Traffic';
+  return 'Hard Gridlock';
+};
+
+const getFamily = (levelNumber: number, attempt: number): LayoutFamily => {
+  const easy: LayoutFamily[] = ['single-choke', 'double-choke', 'switchback'];
+  const mid: LayoutFamily[] = ['double-choke', 'switchback', 'fork-trap', 'snake'];
+  const hard: LayoutFamily[] = ['fork-trap', 'ring-trap', 'snake', 'double-choke', 'switchback'];
+  const pool = levelNumber <= 10 ? easy : levelNumber <= 30 ? mid : hard;
+  return pool[(levelNumber * 11 + attempt * 7) % pool.length];
+};
+
+const carveLine = (open: Set<string>, from: Position, to: Position, width: number, height: number) => {
   let x = from.x;
   let y = from.y;
-
   const add = (px: number, py: number) => {
-    if (px >= 0 && px < width && py >= 0 && py < height) {
-      open.add(`${px},${py}`);
-    }
+    if (px >= 0 && py >= 0 && px < width && py < height) open.add(`${px},${py}`);
   };
-
   add(x, y);
-
   while (x !== to.x) {
     x += Math.sign(to.x - x);
     add(x, y);
   }
-
   while (y !== to.y) {
     y += Math.sign(to.y - y);
     add(x, y);
   }
 };
 
-const carvePath = (
-  open: Set<string>,
-  points: Position[],
-  width: number,
-  height: number,
-) => {
+const carvePath = (open: Set<string>, points: Position[], width: number, height: number) => {
   for (let i = 0; i < points.length - 1; i += 1) {
     carveLine(open, points[i], points[i + 1], width, height);
   }
 };
 
-const getStartRows = (height: number, carCount: number, rng: () => number) => {
-  const mid = Math.floor(height / 2);
-  const candidates = [
-    mid,
-    mid - 1,
-    mid + 1,
-    mid - 2,
-    mid + 2,
-    1,
-    height - 2,
-  ].map((row) => clamp(row, 1, height - 2));
+const getCarRows = (height: number, carCount: number) => {
+  const rows: number[] = [];
+  const top = 1;
+  const bottom = height - 2;
+  const span = bottom - top;
+  for (let i = 0; i < carCount; i += 1) {
+    const row = top + Math.floor((i * Math.max(span, 1)) / Math.max(carCount - 1, 1));
+    rows.push(clamp(row, 1, height - 2));
+  }
+  return Array.from(new Set(rows));
+};
 
-  const rows = shuffle(candidates, rng);
-  const unique: number[] = [];
+const routeForFamily = ({
+  family,
+  width,
+  height,
+  mainY,
+}: {
+  family: LayoutFamily;
+  width: number;
+  height: number;
+  mainY: number;
+}) => {
+  const left = 1;
+  const right = width - 2;
+  const top = 1;
+  const bottom = height - 2;
+  const c1 = clamp(Math.floor(width * 0.35), 2, width - 4);
+  const c2 = clamp(Math.floor(width * 0.62), 3, width - 3);
+  const up = clamp(mainY - 2, top, bottom);
+  const down = clamp(mainY + 2, top, bottom);
 
-  for (const row of rows) {
-    if (!unique.includes(row)) unique.push(row);
-    if (unique.length === carCount) break;
+  const points: Position[][] = [];
+
+  switch (family) {
+    case 'single-choke':
+      points.push([
+        { x: left, y: mainY },
+        { x: right, y: mainY },
+      ]);
+      points.push([
+        { x: c1, y: up },
+        { x: c1, y: down },
+      ]);
+      break;
+    case 'double-choke':
+      points.push([
+        { x: left, y: mainY },
+        { x: right, y: mainY },
+      ]);
+      points.push([
+        { x: c1, y: top },
+        { x: c1, y: bottom },
+      ]);
+      points.push([
+        { x: c2, y: up },
+        { x: c2, y: down },
+      ]);
+      break;
+    case 'switchback':
+      points.push([
+        { x: left, y: mainY },
+        { x: c1, y: mainY },
+        { x: c1, y: up },
+        { x: c2, y: up },
+        { x: c2, y: down },
+        { x: right, y: down },
+      ]);
+      break;
+    case 'fork-trap':
+      points.push([
+        { x: left, y: mainY },
+        { x: right, y: mainY },
+      ]);
+      points.push([
+        { x: c1, y: mainY },
+        { x: c1, y: up },
+      ]);
+      points.push([
+        { x: c2, y: mainY },
+        { x: c2, y: down },
+      ]);
+      points.push([
+        { x: c2, y: down },
+        { x: right, y: down },
+      ]);
+      break;
+    case 'ring-trap':
+      points.push([
+        { x: left, y: up },
+        { x: right, y: up },
+      ]);
+      points.push([
+        { x: left, y: down },
+        { x: right, y: down },
+      ]);
+      points.push([
+        { x: left, y: up },
+        { x: left, y: down },
+      ]);
+      points.push([
+        { x: right, y: up },
+        { x: right, y: down },
+      ]);
+      points.push([
+        { x: c1, y: up },
+        { x: c1, y: mainY },
+      ]);
+      break;
+    case 'snake':
+      points.push([
+        { x: left, y: mainY },
+        { x: c1, y: mainY },
+        { x: c1, y: up },
+        { x: c2, y: up },
+        { x: c2, y: down },
+        { x: c1 + 1, y: down },
+        { x: c1 + 1, y: mainY + 1 <= bottom ? mainY + 1 : mainY - 1 },
+        { x: right, y: mainY + 1 <= bottom ? mainY + 1 : mainY - 1 },
+      ]);
+      break;
   }
 
-  return unique.sort((a, b) => a - b);
+  return { points, c1, c2, up, down };
 };
 
 const getParkingPositions = ({
-  levelNumber,
   carCount,
   width,
   height,
   order,
-  family,
   rng,
 }: {
-  levelNumber: number;
   carCount: number;
   width: number;
   height: number;
   order: number[];
-  family: LayoutFamily;
   rng: () => number;
 }) => {
-  const positions: Position[] = Array.from({ length: carCount }, () => ({ x: 0, y: 0 }));
+  const positions: Position[] = Array.from({ length: carCount }, () => ({ x: width - 2, y: 1 }));
   const used = new Set<string>();
-  const midY = Math.floor(height / 2);
-
-  const denseRows =
-    levelNumber <= 10
-      ? [midY - 1, midY, midY + 1]
-      : levelNumber <= 40
-        ? [midY - 1, midY, midY + 1, midY - 2]
-        : [midY - 1, midY, midY + 1];
-
-  const familyAnchor =
-    family === 'narrow-corridor'
-      ? width - 2
-      : family === 'central-choke'
-        ? width - 3
-        : family === 'crossroad'
-          ? width - 4
-          : width - 3;
+  const coreRows = [
+    Math.floor(height / 2),
+    Math.floor(height / 2) - 1,
+    Math.floor(height / 2) + 1,
+    Math.floor(height / 2) - 2,
+    Math.floor(height / 2) + 2,
+  ].map((row) => clamp(row, 1, height - 2));
 
   for (let rank = 0; rank < order.length; rank += 1) {
     const carIndex = order[rank];
-    const isLateOrder = rank >= Math.floor(order.length / 2);
+    const xPref = rank <= Math.floor(carCount / 2) ? width - 2 : width - 3;
+    const rows = shuffle(coreRows, rng);
 
-    const preferredX = isLateOrder
-      ? clamp(familyAnchor - 1, Math.floor(width / 2), width - 2)
-      : clamp(familyAnchor, Math.floor(width / 2), width - 2);
-
-    const extraX =
-      family === 'dead-end-trap' || family === 'loop'
-        ? [preferredX - 1, preferredX, preferredX - 2, preferredX + 1]
-        : family === 'zigzag'
-          ? [preferredX, preferredX - 2, preferredX + 1, preferredX - 1]
-          : [preferredX, preferredX - 1, preferredX + 1, preferredX - 2];
-
-    const preferredRow =
-      denseRows[(rank + Math.floor(rng() * denseRows.length)) % denseRows.length];
-
-    const candidateRows = [
-      preferredRow,
-      midY,
-      preferredRow - 1,
-      preferredRow + 1,
-      preferredRow - 2,
-      preferredRow + 2,
-    ].map((y) => clamp(y, 1, height - 2));
-
-    const candidateCols = extraX.map((x) =>
-      clamp(x, Math.floor(width / 2), width - 2),
-    );
-
-    let chosen: Position | null = null;
-
-    for (const y of candidateRows) {
-      for (const x of candidateCols) {
-        const k = `${x},${y}`;
-        if (!used.has(k)) {
-          chosen = { x, y };
-          used.add(k);
-          break;
-        }
+    let chosen: Position | undefined;
+    for (const row of rows) {
+      const p = { x: xPref, y: row };
+      if (!used.has(keyOf(p))) {
+        chosen = p;
+        break;
       }
-      if (chosen) break;
     }
 
     if (!chosen) {
-      // son çare: sağ yarıda ilk boş yer
       for (let y = 1; y < height - 1 && !chosen; y += 1) {
-        for (let x = Math.floor(width / 2); x < width - 1; x += 1) {
-          const k = `${x},${y}`;
-          if (!used.has(k)) {
-            chosen = { x, y };
-            used.add(k);
+        for (let x = width - 3; x < width - 1; x += 1) {
+          const p = { x, y };
+          if (!used.has(keyOf(p))) {
+            chosen = p;
             break;
           }
         }
       }
     }
 
-    if (!chosen) {
-      positions[carIndex] = { x: width - 2, y: clamp(midY, 1, height - 2) };
-    } else {
-      positions[carIndex] = chosen;
-    }
+    const finalPos = chosen ?? { x: width - 2, y: clamp(rank + 1, 1, height - 2) };
+    used.add(keyOf(finalPos));
+    positions[carIndex] = finalPos;
   }
 
   return positions;
 };
 
-const makeOpenCells = ({
+const buildOpenCells = ({
   levelNumber,
-  width,
-  height,
-  carRows,
-  parkingPositions,
+  tier,
   family,
+  carRows,
+  parking,
+  rng,
 }: {
   levelNumber: number;
-  width: number;
-  height: number;
-  carRows: number[];
-  parkingPositions: Position[];
+  tier: DifficultyTier;
   family: LayoutFamily;
+  carRows: number[];
+  parking: Position[];
+  rng: () => number;
 }) => {
+  const { width, height } = tier.boardSize;
   const open = new Set<string>();
-  const midY = Math.floor(height / 2);
-  const leftX = 1;
-  const rightX = width - 2;
-
-  const choke1 = clamp(2 + Math.floor(width * 0.3), 2, width - 5);
-  const choke2 = clamp(2 + Math.floor(width * 0.6), 3, width - 3);
-  const upperY = clamp(midY - 2, 1, height - 2);
-  const lowerY = clamp(midY + 2, 1, height - 2);
+  const mainY = clamp(Math.floor(height / 2), 1, height - 2);
 
   for (const row of carRows) {
-    carvePath(
-      open,
-      [
-        { x: 0, y: row },
-        { x: 1, y: row },
-        { x: 1, y: midY },
-      ],
-      width,
-      height,
-    );
+    carvePath(open, [{ x: 0, y: row }, { x: 1, y: row }, { x: 1, y: mainY }], width, height);
   }
 
-  switch (family) {
-    case 'narrow-corridor':
-      carveLine(open, { x: leftX, y: midY }, { x: rightX, y: midY }, width, height);
-      carveLine(open, { x: choke1, y: upperY }, { x: choke1, y: lowerY }, width, height);
-      break;
-    case 'central-choke':
-      carveLine(open, { x: leftX, y: midY }, { x: rightX, y: midY }, width, height);
-      carveLine(open, { x: choke1, y: upperY }, { x: choke1, y: lowerY }, width, height);
-      carveLine(open, { x: choke2, y: upperY }, { x: choke2, y: lowerY }, width, height);
-      break;
-    case 'split-region':
-      carveLine(open, { x: leftX, y: upperY }, { x: rightX, y: upperY }, width, height);
-      carveLine(open, { x: leftX, y: lowerY }, { x: rightX, y: lowerY }, width, height);
-      carveLine(open, { x: choke1, y: upperY }, { x: choke1, y: lowerY }, width, height);
-      break;
-    case 'crossroad':
-      carveLine(open, { x: leftX, y: midY }, { x: rightX, y: midY }, width, height);
-      carveLine(open, { x: choke1, y: 1 }, { x: choke1, y: height - 2 }, width, height);
-      carveLine(open, { x: choke2, y: upperY }, { x: choke2, y: lowerY }, width, height);
-      break;
-    case 'dead-end-trap':
-      carveLine(open, { x: leftX, y: midY }, { x: rightX, y: midY }, width, height);
-      carveLine(open, { x: choke1, y: midY }, { x: choke1, y: upperY }, width, height);
-      carveLine(open, { x: choke2, y: midY }, { x: choke2, y: lowerY }, width, height);
-      carveLine(open, { x: choke2 + 1, y: lowerY }, { x: rightX, y: lowerY }, width, height);
-      break;
-    case 'loop':
-      carveLine(open, { x: leftX, y: upperY }, { x: rightX, y: upperY }, width, height);
-      carveLine(open, { x: leftX, y: lowerY }, { x: rightX, y: lowerY }, width, height);
-      carveLine(open, { x: leftX, y: upperY }, { x: leftX, y: lowerY }, width, height);
-      carveLine(open, { x: rightX, y: upperY }, { x: rightX, y: lowerY }, width, height);
-      carveLine(open, { x: choke1, y: upperY }, { x: choke1, y: midY }, width, height);
-      break;
-    case 'asymmetrical':
-      carvePath(
-        open,
-        [
-          { x: leftX, y: midY },
-          { x: choke1, y: upperY },
-          { x: choke2, y: lowerY },
-          { x: rightX, y: midY },
-        ],
-        width,
-        height,
-      );
-      carveLine(open, { x: choke1 + 1, y: upperY }, { x: choke1 + 1, y: 1 }, width, height);
-      break;
-    case 'zigzag':
-      carvePath(
-        open,
-        [
-          { x: leftX, y: midY },
-          { x: choke1, y: midY },
-          { x: choke1, y: upperY },
-          { x: choke2 - 1, y: upperY },
-          { x: choke2 - 1, y: lowerY },
-          { x: rightX, y: lowerY },
-        ],
-        width,
-        height,
-      );
-      break;
+  const route = routeForFamily({ family, width, height, mainY });
+  for (const polyline of route.points) {
+    carvePath(open, polyline, width, height);
   }
 
-  for (let i = 0; i < parkingPositions.length; i += 1) {
-    const park = parkingPositions[i];
+  parking.forEach((spot, i) => {
+    const entryX = i % 2 === 0 ? route.c1 : route.c2;
+    const entryY = i % 3 === 0 ? route.up : i % 3 === 1 ? mainY : route.down;
+    carvePath(open, [{ x: entryX, y: entryY }, { x: spot.x, y: entryY }, { x: spot.x, y: spot.y }], width, height);
+  });
 
-    if (levelNumber <= 15) {
-      carvePath(
-        open,
-        [
-          { x: choke1, y: midY },
-          { x: park.x, y: midY },
-          { x: park.x, y: park.y },
-        ],
-        width,
-        height,
-      );
-      continue;
-    }
-
-    if ((family === 'zigzag' || family === 'dead-end-trap') && levelNumber >= 35) {
-      const detourY = park.y < midY ? clamp(midY - 1, 1, height - 2) : clamp(midY + 1, 1, height - 2);
-      carvePath(
-        open,
-        [
-          { x: choke1, y: midY },
-          { x: choke2, y: detourY },
-          { x: park.x, y: detourY },
-          { x: park.x, y: park.y },
-        ],
-        width,
-        height,
-      );
-      continue;
-    }
-
-    const entryX = i % 2 === 0 ? choke1 : choke2;
-    const anchorY =
-      family === 'split-region' ? (rankToBand(i, parkingPositions.length) ? upperY : lowerY) : midY;
-    carvePath(
-      open,
-      [
-        { x: entryX, y: anchorY },
-        { x: park.x, y: anchorY },
-        { x: park.x, y: park.y },
-      ],
-      width,
-      height,
-    );
+  const decoys = Math.floor((width * height * tier.decoyDensity) / 2);
+  for (let i = 0; i < decoys; i += 1) {
+    const x = clamp(2 + Math.floor(rng() * (width - 4)), 1, width - 2);
+    const y = clamp(1 + Math.floor(rng() * (height - 2)), 1, height - 2);
+    const targetY = rng() > 0.5 ? route.up : route.down;
+    carveLine(open, { x, y }, { x, y: targetY }, width, height);
   }
 
-  if (levelNumber >= 28) {
-    const branchX = clamp(choke1 + 1, 2, width - 3);
-    carveLine(
-      open,
-      { x: branchX, y: midY },
-      { x: branchX, y: clamp(midY + 2, 1, height - 2) },
-      width,
-      height,
-    );
-  }
-
-  if (levelNumber >= 45) {
-    const branchX = clamp(choke2 - 1, 2, width - 3);
-    carveLine(
-      open,
-      { x: branchX, y: midY },
-      { x: branchX, y: clamp(midY - 2, 1, height - 2) },
-      width,
-      height,
-    );
+  if (levelNumber >= 30) {
+    carveLine(open, { x: route.c2 - 1, y: mainY }, { x: route.c2 - 1, y: route.up }, width, height);
   }
 
   return open;
 };
 
-const rankToBand = (index: number, total: number) =>
-  index < Math.ceil(total / 2);
-
-const makeObstacles = ({
-  width,
-  height,
-  openCells,
-}: {
-  width: number;
-  height: number;
-  openCells: Set<string>;
-}): Obstacle[] => {
-  const obstacles: Obstacle[] = [];
-
+const makeObstacles = (width: number, height: number, open: Set<string>) => {
+  const obstacles: LevelDefinition['obstacles'] = [];
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      if (!openCells.has(`${x},${y}`)) {
-        obstacles.push({
-          id: `obs-${x}-${y}`,
-          position: { x, y },
-        });
-      }
+      if (!open.has(`${x},${y}`)) obstacles.push({ id: `obs-${x}-${y}`, position: { x, y } });
     }
   }
-
   return obstacles;
 };
-
-const isInside = (width: number, height: number, p: Position) =>
-  p.x >= 0 && p.y >= 0 && p.x < width && p.y < height;
 
 const hasPath = ({
   width,
@@ -503,333 +369,298 @@ const hasPath = ({
   blocked: Set<string>;
 }) => {
   const queue: Position[] = [start];
-  const seen = new Set<string>([keyOf(start)]);
-
+  const visited = new Set<string>([keyOf(start)]);
   while (queue.length > 0) {
-    const current = queue.shift()!;
-
-    if (current.x === goal.x && current.y === goal.y) {
-      return true;
-    }
-
+    const cur = queue.shift()!;
+    if (cur.x === goal.x && cur.y === goal.y) return true;
     const neighbors = [
-      { x: current.x + 1, y: current.y },
-      { x: current.x - 1, y: current.y },
-      { x: current.x, y: current.y + 1 },
-      { x: current.x, y: current.y - 1 },
+      { x: cur.x + 1, y: cur.y },
+      { x: cur.x - 1, y: cur.y },
+      { x: cur.x, y: cur.y + 1 },
+      { x: cur.x, y: cur.y - 1 },
     ];
-
     for (const next of neighbors) {
       const k = keyOf(next);
-      if (!isInside(width, height, next) || blocked.has(k) || seen.has(k)) {
+      if (next.x < 0 || next.y < 0 || next.x >= width || next.y >= height || blocked.has(k) || visited.has(k)) {
         continue;
       }
-      seen.add(k);
+      visited.add(k);
       queue.push(next);
     }
   }
-
   return false;
+};
+
+const canPark = (level: LevelDefinition, carIndex: number, mask: number) => {
+  const car = level.cars[carIndex];
+  const target = level.parkingSpots.find((spot) => spot.acceptsCarId === car.id)?.position;
+  if (!target) return false;
+
+  const blocked = new Set(level.obstacles.map((o) => keyOf(o.position)));
+  for (let i = 0; i < level.cars.length; i += 1) {
+    if (i === carIndex) continue;
+    const otherCar = level.cars[i];
+    const parked = (mask & (1 << i)) !== 0;
+    const parkedPos = level.parkingSpots.find((spot) => spot.acceptsCarId === otherCar.id)?.position;
+    blocked.add(keyOf(parked ? parkedPos ?? otherCar.position : otherCar.position));
+  }
+
+  return hasPath({
+    width: level.boardSize.width,
+    height: level.boardSize.height,
+    start: car.position,
+    goal: target,
+    blocked,
+  });
 };
 
 const isSolvable = (level: LevelDefinition) => {
   const allMask = (1 << level.cars.length) - 1;
-  const obstacleSet = new Set(level.obstacles.map((o) => keyOf(o.position)));
-  const cars = level.cars;
-  const spotByCarId = new Map(
-    level.parkingSpots.map((spot) => [spot.acceptsCarId, spot.position]),
-  );
   const memo = new Map<number, boolean>();
 
-  const canParkWithMask = (index: number, mask: number) => {
-    const car = cars[index];
-    const spot = spotByCarId.get(car.id);
-    if (!spot) return false;
-
-    const blocked = new Set<string>(obstacleSet);
-
-    for (let i = 0; i < cars.length; i += 1) {
-      if (i === index) continue;
-      const otherCar = cars[i];
-      const isParked = (mask & (1 << i)) !== 0;
-      blocked.add(
-        keyOf(isParked ? (spotByCarId.get(otherCar.id) ?? otherCar.position) : otherCar.position),
-      );
-    }
-
-    return hasPath({
-      width: level.boardSize.width,
-      height: level.boardSize.height,
-      start: car.position,
-      goal: spot,
-      blocked,
-    });
-  };
-
-  const canFinish = (mask: number): boolean => {
+  const dfs = (mask: number): boolean => {
     if (mask === allMask) return true;
-    if (memo.has(mask)) return memo.get(mask)!;
-
-    for (let i = 0; i < cars.length; i += 1) {
+    const cached = memo.get(mask);
+    if (cached !== undefined) return cached;
+    for (let i = 0; i < level.cars.length; i += 1) {
       if ((mask & (1 << i)) !== 0) continue;
-      if (canParkWithMask(i, mask) && canFinish(mask | (1 << i))) {
+      if (canPark(level, i, mask) && dfs(mask | (1 << i))) {
         memo.set(mask, true);
         return true;
       }
     }
-
     memo.set(mask, false);
     return false;
   };
 
-  return canFinish(0);
+  return dfs(0);
 };
 
-const overlapsExist = (level: LevelDefinition) => {
-  const occupied = new Set<string>();
+const countSolutions = (level: LevelDefinition, cap = 5) => {
+  const allMask = (1 << level.cars.length) - 1;
+  const memo = new Map<number, number>();
 
+  const dfs = (mask: number): number => {
+    if (mask === allMask) return 1;
+    if (memo.has(mask)) return memo.get(mask)!;
+    let total = 0;
+    for (let i = 0; i < level.cars.length; i += 1) {
+      if ((mask & (1 << i)) !== 0) continue;
+      if (!canPark(level, i, mask)) continue;
+      total += dfs(mask | (1 << i));
+      if (total >= cap) {
+        memo.set(mask, cap);
+        return cap;
+      }
+    }
+    memo.set(mask, total);
+    return total;
+  };
+
+  return dfs(0);
+};
+
+const countDeadFirstMoves = (level: LevelDefinition) => {
+  let dead = 0;
+  for (let i = 0; i < level.cars.length; i += 1) {
+    if (!canPark(level, i, 0)) continue;
+    const solvableAfter = isMaskSolvable(level, 1 << i);
+    if (!solvableAfter) dead += 1;
+  }
+  return dead;
+};
+
+const isMaskSolvable = (level: LevelDefinition, startMask: number) => {
+  const allMask = (1 << level.cars.length) - 1;
+  const memo = new Map<number, boolean>();
+  const dfs = (mask: number): boolean => {
+    if (mask === allMask) return true;
+    if (memo.has(mask)) return memo.get(mask)!;
+    for (let i = 0; i < level.cars.length; i += 1) {
+      if ((mask & (1 << i)) !== 0) continue;
+      if (canPark(level, i, mask) && dfs(mask | (1 << i))) {
+        memo.set(mask, true);
+        return true;
+      }
+    }
+    memo.set(mask, false);
+    return false;
+  };
+  return dfs(startMask);
+};
+
+const countChokepoints = (level: LevelDefinition) => {
+  const blocked = new Set(level.obstacles.map((o) => keyOf(o.position)));
+  let count = 0;
+  for (let y = 0; y < level.boardSize.height; y += 1) {
+    for (let x = 0; x < level.boardSize.width; x += 1) {
+      const here = `${x},${y}`;
+      if (blocked.has(here)) continue;
+      const neighbors = [
+        `${x + 1},${y}`,
+        `${x - 1},${y}`,
+        `${x},${y + 1}`,
+        `${x},${y - 1}`,
+      ].filter((k) => !blocked.has(k));
+      if (neighbors.length <= 2) count += 1;
+    }
+  }
+  return count;
+};
+
+const opennessRatio = (level: LevelDefinition) => {
+  const total = level.boardSize.width * level.boardSize.height;
+  return 1 - level.obstacles.length / total;
+};
+
+const hasOverlaps = (level: LevelDefinition) => {
+  const used = new Set<string>();
   for (const car of level.cars) {
     const k = keyOf(car.position);
-    if (occupied.has(k)) return true;
-    occupied.add(k);
+    if (used.has(k)) return true;
+    used.add(k);
   }
-
   for (const spot of level.parkingSpots) {
     const k = keyOf(spot.position);
-    if (occupied.has(k)) return true;
-    occupied.add(k);
+    if (used.has(k)) return true;
+    used.add(k);
   }
-
-  for (const obstacle of level.obstacles) {
-    const k = keyOf(obstacle.position);
-    if (occupied.has(k)) return true;
-    occupied.add(k);
+  for (const obs of level.obstacles) {
+    const k = keyOf(obs.position);
+    if (used.has(k)) return true;
+    used.add(k);
   }
-
   return false;
 };
 
-const areLevelsTooSimilar = (a: LevelDefinition, b: LevelDefinition) => {
-  if (
-    a.boardSize.width !== b.boardSize.width ||
-    a.boardSize.height !== b.boardSize.height ||
-    a.cars.length !== b.cars.length
-  ) {
+const isQualityLevel = (level: LevelDefinition, tier: DifficultyTier) => {
+  if (hasOverlaps(level)) return false;
+  if (!isSolvable(level)) return false;
+  if (opennessRatio(level) > tier.opennessMax) return false;
+  if (countChokepoints(level) < tier.minChokepoints) return false;
+  if (countDeadFirstMoves(level) < tier.minDeadFirstMoves) return false;
+
+  const solutionCount = countSolutions(level, 5);
+  if (level.cars.length <= 3) {
+    if (solutionCount === 0) return false;
+  } else if (solutionCount >= 5) {
     return false;
   }
 
-  const obstacleA = new Set(a.obstacles.map((o) => keyOf(o.position)));
-  const obstacleB = new Set(b.obstacles.map((o) => keyOf(o.position)));
-  let sameObstacleCells = 0;
+  return true;
+};
 
-  for (const key of obstacleA) {
-    if (obstacleB.has(key)) sameObstacleCells += 1;
+const buildGeneratedLevel = (levelNumber: number, attempt: number): LevelDefinition => {
+  const tier = getTier(levelNumber);
+  const rng = createRng(levelNumber * 11939 + attempt * 131);
+  const family = getFamily(levelNumber, attempt);
+  const order = shuffle(Array.from({ length: tier.carCount }, (_, i) => i), rng);
+  if (levelNumber <= 10) order.sort((a, b) => a - b);
+
+  const carRows = getCarRows(tier.boardSize.height, tier.carCount);
+  while (carRows.length < tier.carCount) carRows.push(clamp(carRows.length + 1, 1, tier.boardSize.height - 2));
+
+  const parking = getParkingPositions({
+    carCount: tier.carCount,
+    width: tier.boardSize.width,
+    height: tier.boardSize.height,
+    order,
+    rng,
+  });
+
+  const open = buildOpenCells({
+    levelNumber,
+    tier,
+    family,
+    carRows,
+    parking,
+    rng,
+  });
+
+  return {
+    id: `level-${String(levelNumber).padStart(3, '0')}`,
+    name: `Level ${levelNumber} - ${difficultyName(levelNumber)}`,
+    boardSize: tier.boardSize,
+    cars: Array.from({ length: tier.carCount }, (_, i) => ({
+      id: `car-${i + 1}`,
+      label: LABEL_POOL[i],
+      color: COLOR_POOL[i],
+      position: { x: 0, y: carRows[i] },
+    })),
+    parkingSpots: Array.from({ length: tier.carCount }, (_, i) => ({
+      id: `park-${i + 1}`,
+      color: COLOR_POOL[i],
+      acceptsCarId: `car-${i + 1}`,
+      position: parking[i],
+    })),
+    obstacles: makeObstacles(tier.boardSize.width, tier.boardSize.height, open),
+  };
+};
+
+const buildFallbackLevel = (levelNumber: number): LevelDefinition => ({
+  id: `level-${String(levelNumber).padStart(3, '0')}`,
+  name: `Level ${levelNumber} - ${difficultyName(levelNumber)}`,
+  boardSize: { width: 8, height: 6 },
+  cars: [
+    { id: 'car-1', label: 'R', color: COLOR_POOL[0], position: { x: 0, y: 2 } },
+    { id: 'car-2', label: 'G', color: COLOR_POOL[1], position: { x: 0, y: 3 } },
+  ],
+  parkingSpots: [
+    { id: 'park-1', color: COLOR_POOL[0], acceptsCarId: 'car-1', position: { x: 6, y: 2 } },
+    { id: 'park-2', color: COLOR_POOL[1], acceptsCarId: 'car-2', position: { x: 6, y: 3 } },
+  ],
+  obstacles: makeObstacles(
+    8,
+    6,
+    new Set([
+      '0,2',
+      '1,2',
+      '2,2',
+      '3,2',
+      '4,2',
+      '5,2',
+      '6,2',
+      '0,3',
+      '1,3',
+      '2,3',
+      '3,3',
+      '4,3',
+      '5,3',
+      '6,3',
+      '1,1',
+      '1,4',
+    ]),
+  ),
+});
+
+const STRONG_EXAMPLE_LEVELS: Record<number, LevelDefinition> = {
+  31: buildGeneratedLevel(31, 301),
+  32: buildGeneratedLevel(32, 302),
+  33: buildGeneratedLevel(33, 303),
+  34: buildGeneratedLevel(34, 304),
+  35: buildGeneratedLevel(35, 305),
+  36: buildGeneratedLevel(36, 306),
+  37: buildGeneratedLevel(37, 307),
+  38: buildGeneratedLevel(38, 308),
+  39: buildGeneratedLevel(39, 309),
+  40: buildGeneratedLevel(40, 310),
+};
+
+const buildLevel = (levelNumber: number): LevelDefinition => {
+  const example = STRONG_EXAMPLE_LEVELS[levelNumber];
+  if (example && isQualityLevel(example, getTier(levelNumber))) {
+    return example;
   }
 
-  const overlapRatio = sameObstacleCells / Math.max(obstacleA.size, 1);
-  return overlapRatio >= 0.82;
-};
-
-const buildCandidateLevel = (
-  levelNumber: number,
-  attempt: number,
-  previousFamily?: LayoutFamily,
-): LevelDefinition => {
-  const carCount = getCarCountForLevel(levelNumber);
-  const boardSize = getBoardSize(levelNumber, carCount);
-  const rng = createRng(levelNumber * 997 + attempt * 131 + carCount * 17);
-  const order = getWinningOrder(levelNumber, carCount, rng);
-  const family = getLayoutFamily({ levelNumber, attempt, previousFamily });
-  const carRows = getStartRows(boardSize.height, carCount, rng);
-  const parkingPositions = getParkingPositions({
-    levelNumber,
-    carCount,
-    width: boardSize.width,
-    height: boardSize.height,
-    order,
-    family,
-    rng,
-  });
-
-  const openCells = makeOpenCells({
-    levelNumber,
-    width: boardSize.width,
-    height: boardSize.height,
-    carRows,
-    parkingPositions,
-    family,
-  });
-
-  const cars = Array.from({ length: carCount }, (_, i) => ({
-    id: `car-${i + 1}`,
-    label: LABEL_POOL[i],
-    color: COLOR_POOL[i],
-    position: { x: 0, y: carRows[i] },
-  }));
-
-  const parkingSpots = Array.from({ length: carCount }, (_, i) => ({
-    id: `park-${i + 1}`,
-    position: parkingPositions[i],
-    color: COLOR_POOL[i],
-    acceptsCarId: `car-${i + 1}`,
-  }));
-
-  return {
-    id: `level-${String(levelNumber).padStart(3, '0')}`,
-    name: `Level ${levelNumber} - ${getDifficultyLabel(levelNumber)}`,
-    boardSize,
-    cars,
-    parkingSpots,
-    obstacles: makeObstacles({
-      width: boardSize.width,
-      height: boardSize.height,
-      openCells,
-    }),
-  };
-};
-
-const buildEmergencyLevel = (levelNumber: number): LevelDefinition => {
-  const safeLevel = Math.max(1, Math.min(levelNumber, 30));
-  const carCount = getCarCountForLevel(safeLevel);
-  const boardSize = getBoardSize(safeLevel, carCount);
-  const rng = createRng(500000 + levelNumber * 59);
-  const order = getWinningOrder(safeLevel, carCount, rng);
-  const family: LayoutFamily = levelNumber % 2 === 0 ? 'narrow-corridor' : 'central-choke';
-  const carRows = getStartRows(boardSize.height, carCount, rng);
-  const parkingPositions = getParkingPositions({
-    levelNumber: safeLevel,
-    carCount,
-    width: boardSize.width,
-    height: boardSize.height,
-    order,
-    family,
-    rng,
-  });
-
-  const openCells = makeOpenCells({
-    levelNumber: safeLevel,
-    width: boardSize.width,
-    height: boardSize.height,
-    carRows,
-    parkingPositions,
-    family,
-  });
-
-  const cars = Array.from({ length: carCount }, (_, i) => ({
-    id: `car-${i + 1}`,
-    label: LABEL_POOL[i],
-    color: COLOR_POOL[i],
-    position: { x: 0, y: carRows[i] },
-  }));
-
-  const parkingSpots = Array.from({ length: carCount }, (_, i) => ({
-    id: `park-${i + 1}`,
-    position: parkingPositions[i],
-    color: COLOR_POOL[i],
-    acceptsCarId: `car-${i + 1}`,
-  }));
-
-  return {
-    id: `level-${String(levelNumber).padStart(3, '0')}`,
-    name: `Level ${levelNumber} - ${getDifficultyLabel(levelNumber)}`,
-    boardSize,
-    cars,
-    parkingSpots,
-    obstacles: makeObstacles({
-      width: boardSize.width,
-      height: boardSize.height,
-      openCells,
-    }),
-  };
-};
-
-const buildLevel = (
-  levelNumber: number,
-  previousFamily?: LayoutFamily,
-  previousLevel?: LevelDefinition,
-): LevelDefinition => {
-  const attempts =
-    levelNumber <= 20 ? 10 : levelNumber <= 60 ? 14 : 18;
-
+  const attempts = levelNumber <= 10 ? 24 : levelNumber <= 30 ? 40 : 72;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    let candidate: LevelDefinition;
-
-    try {
-      candidate = buildCandidateLevel(levelNumber, attempt, previousFamily);
-    } catch {
-      continue;
-    }
-
-    if (overlapsExist(candidate)) continue;
-    if (previousLevel && areLevelsTooSimilar(candidate, previousLevel)) continue;
-    if (isSolvable(candidate)) return candidate;
+    const candidate = buildGeneratedLevel(levelNumber, attempt);
+    if (isQualityLevel(candidate, getTier(levelNumber))) return candidate;
   }
 
-  const emergency = buildEmergencyLevel(levelNumber);
-  if (!overlapsExist(emergency) && isSolvable(emergency)) {
-    return emergency;
-  }
-
-  // En son çare: ultra basit ama mutlaka açılan level
-  const boardSize = { width: 8, height: 6 };
-  const cars = [
-    {
-      id: 'car-1',
-      label: LABEL_POOL[0],
-      color: COLOR_POOL[0],
-      position: { x: 0, y: 2 },
-    },
-    {
-      id: 'car-2',
-      label: LABEL_POOL[1],
-      color: COLOR_POOL[1],
-      position: { x: 0, y: 3 },
-    },
-  ];
-  const parkingSpots = [
-    {
-      id: 'park-1',
-      position: { x: 6, y: 2 },
-      color: COLOR_POOL[0],
-      acceptsCarId: 'car-1',
-    },
-    {
-      id: 'park-2',
-      position: { x: 6, y: 3 },
-      color: COLOR_POOL[1],
-      acceptsCarId: 'car-2',
-    },
-  ];
-
-  const openCells = new Set<string>();
-  carveLine(openCells, { x: 0, y: 2 }, { x: 6, y: 2 }, boardSize.width, boardSize.height);
-  carveLine(openCells, { x: 0, y: 3 }, { x: 6, y: 3 }, boardSize.width, boardSize.height);
-  carveLine(openCells, { x: 1, y: 2 }, { x: 1, y: 3 }, boardSize.width, boardSize.height);
-
-  return {
-    id: `level-${String(levelNumber).padStart(3, '0')}`,
-    name: `Level ${levelNumber} - ${getDifficultyLabel(levelNumber)}`,
-    boardSize,
-    cars,
-    parkingSpots,
-    obstacles: makeObstacles({
-      width: boardSize.width,
-      height: boardSize.height,
-      openCells,
-    }),
-  };
+  return buildFallbackLevel(levelNumber);
 };
 
-export const GENERATED_LEVELS: LevelDefinition[] = Array.from(
-  { length: 100 },
-  (_, index) => index + 1,
-).reduce<LevelDefinition[]>((levels, levelNumber) => {
-  const previousFamily =
-    levelNumber > 1
-      ? getLayoutFamily({ levelNumber: levelNumber - 1, attempt: 0 })
-      : undefined;
-  const previousLevel = levels[levels.length - 1];
-  const level = buildLevel(levelNumber, previousFamily, previousLevel);
-  levels.push(level);
-  return levels;
-}, []);
+export const GENERATED_LEVELS: LevelDefinition[] = Array.from({ length: 100 }, (_, index) =>
+  buildLevel(index + 1),
+);
