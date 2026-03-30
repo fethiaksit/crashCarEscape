@@ -17,7 +17,7 @@ export function HomeScreen() {
         </Pressable>
 
         <View style={styles.centerContent}>
-          <Text style={styles.title}>Crash Car Escape</Text>
+          <Text style={styles.title}>Untangle Puzzle</Text>
 
           <Pressable
             style={({ pressed }) => [
